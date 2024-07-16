@@ -10,7 +10,7 @@ from astrocom.serialport import SynScan, ERROR_TYPE
 
 class MountCmd(cmd.Cmd):
 	intro = "\nWelcome to the SynScan command line.\nType help or ? to list commands.\n"
-	prompt = "(synscan) "
+	prompt = "(astrocom) "
 	
 	def __init__(self, portname):
 		super().__init__()
@@ -34,8 +34,10 @@ class MountCmd(cmd.Cmd):
 		position_1 = self.synscan.get_axis_position(1)
 		position_2 = self.synscan.get_axis_position(2)
 		print(time.ctime())
-		print('RA : %8.3f° %s'%(360*position_1,status_1))
-		print('DEC: %8.3f° %s'%(360*position_2,status_2))
+		if (position_1 is not ERROR_TYPE) and (status_1 is not ERROR_TYPE):
+			print('RA : %8.3f° %s'%(360*position_1,status_1))
+		if (position_2 is not ERROR_TYPE) and (status_2 is not ERROR_TYPE):
+			print('DEC: %8.3f° %s'%(360*position_2,status_2))
 	
 	def do_goto(self, arg):
 		"""
@@ -98,8 +100,9 @@ class MountCmd(cmd.Cmd):
 				if a.upper() in ['GOTO','TRACK']:
 					goto_or_track = getattr(self.synscan, a.upper())
 			# Send
-			self.synscan.set_motion_mode(axis, goto_or_track, speed, direction)
-			self.do_status(None) # also show status
+			if (goto_or_track is not ERROR_TYPE) and (speed is not ERROR_TYPE) and (direction is not ERROR_TYPE):
+				self.synscan.set_motion_mode(axis, goto_or_track, speed, direction)
+				self.do_status(None) # also show status
 			
 	def do_exit(self, arg):
 		"""Exit the command line interpreter"""
