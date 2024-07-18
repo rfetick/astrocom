@@ -28,10 +28,10 @@ python example/run.py
 ```
 It opens a command line interface to communicate with the mount.
 ```
-user@machine:~/Documents/astrocom $ python example/run.py 
+user@machine:~/Documents/python/astrocom $ python example/run.py 
 Initialize SynScan on /dev/ttyUSB0
 
-Welcome to the SynScan command line.
+Welcome to the ASTROCOM command line.
 Type help or ? to list commands.
 
 (astrocom) help
@@ -42,7 +42,19 @@ exit  goto  help  init  mode  start  status  stop
 
 (astrocom) init
 (astrocom) status
-Tue Jul 16 22:55:00 2024
+Thu Jul 18 11:09:56 2024
 RA :    0.000°       STOP  TRACK   FORWARD  SLOW
 DEC:    0.000°       STOP  TRACK   FORWARD  SLOW
+(astrocom) goto 1 10
+Thu Jul 18 11:10:06 2024
+RA :    0.000°       STOP   GOTO   FORWARD  SLOW
+DEC:    0.000°       STOP  TRACK   FORWARD  SLOW
+(astrocom) start 1
+(astrocom) status
+Thu Jul 18 11:10:27 2024
+RA :   10.000°       STOP  TRACK   FORWARD  SLOW
+DEC:    0.000°       STOP  TRACK   FORWARD  SLOW
+(astrocom) exit
+Motors have been stopped
+Port has been closed
 ```

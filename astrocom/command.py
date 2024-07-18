@@ -3,13 +3,13 @@ Command line interface
 """
 
 import cmd
-import logging
 import time
+from astrocom import logger
 from astrocom.astro import turn_to_hms, turn_to_dms
-from astrocom.serialport import SynScan, ERROR_TYPE
+from astrocom.serialport import SynScan, AstrocomException
 
 class MountCmd(cmd.Cmd):
-	intro = "\nWelcome to the SynScan command line.\nType help or ? to list commands.\n"
+	intro = "\nWelcome to the ASTROCOM command line.\nType help or ? to list commands.\n"
 	prompt = "(astrocom) "
 	
 	def __init__(self, portname):
@@ -34,9 +34,9 @@ class MountCmd(cmd.Cmd):
 		position_1 = self.synscan.get_axis_position(1)
 		position_2 = self.synscan.get_axis_position(2)
 		print(time.ctime())
-		if (position_1 is not ERROR_TYPE) and (status_1 is not ERROR_TYPE):
+		if (position_1 is not AstrocomException) and (status_1 is not AstrocomException):
 			print('RA : %8.3f° %s'%(360*position_1,status_1))
-		if (position_2 is not ERROR_TYPE) and (status_2 is not ERROR_TYPE):
+		if (position_2 is not AstrocomException) and (status_2 is not AstrocomException):
 			print('DEC: %8.3f° %s'%(360*position_2,status_2))
 	
 	def do_goto(self, arg):
@@ -62,7 +62,7 @@ class MountCmd(cmd.Cmd):
 			axnb = int(axnb)
 			self.synscan.start_motion(axnb)
 		except:
-			logging.warning('Cannot get axis number')
+			logger.warning('Cannot get axis number')
 	
 	def do_stop(self, axnb):
 		"""
@@ -75,7 +75,7 @@ class MountCmd(cmd.Cmd):
 			axnb = int(axnb)
 			self.synscan.stop_motion_now(axnb)
 		except:
-			logging.warning('Cannot get axis number')
+			logger.warning('Cannot get axis number')
 			
 	def do_mode(self, arg):
 		"""
@@ -84,7 +84,7 @@ class MountCmd(cmd.Cmd):
 		"""
 		arg = arg.split()
 		if len(arg)<2:
-			logging.warning('Not enough arguments')
+			logger.warning('Not enough arguments')
 		else:
 			axis = int(arg[0])
 			# Get previous mode
@@ -100,7 +100,7 @@ class MountCmd(cmd.Cmd):
 				if a.upper() in ['GOTO','TRACK']:
 					goto_or_track = getattr(self.synscan, a.upper())
 			# Send
-			if (goto_or_track is not ERROR_TYPE) and (speed is not ERROR_TYPE) and (direction is not ERROR_TYPE):
+			if (goto_or_track is not AstrocomException) and (speed is not AstrocomException) and (direction is not AstrocomException):
 				self.synscan.set_motion_mode(axis, goto_or_track, speed, direction)
 				self.do_status(None) # also show status
 			
