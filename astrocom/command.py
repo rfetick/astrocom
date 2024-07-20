@@ -3,18 +3,24 @@ Command line interface
 """
 
 import cmd
-import time
+import datetime
 from astrocom import logger
-from astrocom.astro import turn_to_hms, turn_to_dms
+from astrocom.astro import longitude_to_sideraltime, dms_to_deg
 from astrocom.serialport import SynScan, AstrocomException
 
 class MountCmd(cmd.Cmd):
 	intro = "\nWelcome to the ASTROCOM command line.\nType help or ? to list commands.\n"
 	prompt = "(astrocom) "
 	
-	def __init__(self, portname):
+	def __init__(self, portname, latitude_tpl, longitude_tpl):
 		super().__init__()
 		self.synscan = SynScan(portname)
+		self.latitude = latitude_tpl #TODO use it to get mount sky coordinates
+		self.longitude = longitude_tpl #TODO use it to get mount sky coordinates
+		if latitude_tpl[0]>=0:
+			self.synscan.north_south = self.synscan.NORTH
+		else:
+			self.synscan.north_south = self.synscan.SOUTH
 		
 	def do_init(self, _):
 		"""
@@ -33,12 +39,23 @@ class MountCmd(cmd.Cmd):
 		status_2 = self.synscan.get_axis_status_as_str(2)
 		position_1 = self.synscan.get_axis_position(1)
 		position_2 = self.synscan.get_axis_position(2)
-		print(time.ctime())
 		if (position_1 is not AstrocomException) and (status_1 is not AstrocomException):
 			print('RA : %8.3f° %s'%(360*position_1,status_1))
 		if (position_2 is not AstrocomException) and (status_2 is not AstrocomException):
 			print('DEC: %8.3f° %s'%(360*position_2,status_2))
 	
+	def do_time(self, arg):
+		"""
+		Print current time
+		> time
+		"""
+		dt_local = datetime.datetime.now()
+		dt_utc = dt_local.utcnow()
+		dt_sid = longitude_to_sideraltime(dms_to_deg(self.longitude))
+		print('LOCAL  : %02u:%02u:%02u'%(dt_local.hour, dt_local.minute, dt_local.second))
+		print('UTC    : %02u:%02u:%02u'%(dt_utc.hour, dt_utc.minute, dt_utc.second))
+		print('SIDERAL: %02u:%02u:%02u'%dt_sid.hms)
+    
 	def do_goto(self, arg):
 		"""
 		Goto position on given axis.
