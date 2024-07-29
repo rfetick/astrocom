@@ -23,7 +23,7 @@ SW_CMD = {
 'J':'START_MOTION',
 'K':'STOP_MOTION',
 'L':'STOP_MOTION_NOW',
-'P':'SET_ST4_GUIDE_RATE',
+'P':'SET_AUTOGUIDE_RATE',
 'S':'SET_GOTO_TARGET',
 'V':'SET_LED_BRIGHTNESS'}
     
@@ -178,6 +178,12 @@ def axis_dict_to_str(dic):
 	return ans
 
 
+def hexa_response_to_int(res):
+	"""Convert an hexadecimal response to an integer"""
+	descramble = res[4] + res[5] + res[2] + res[3] + res[0] + res[1]
+	return int(descramble, 16)
+
+
 def position_to_turn_ratio(pos):
 	"""
 	Convert a mount position string to a turn ratio [-1,+1].
@@ -185,9 +191,8 @@ def position_to_turn_ratio(pos):
 	"""
 	maxi = int("F"*6,16) / 2
 	offset = int("800000",16)
-	hexa = pos[4] + pos[5] + pos[2] + pos[3] + pos[0] + pos[1]
 	try:
-		ans = (int(hexa,16) - offset) / maxi
+		ans = (hexa_response_to_int(pos) - offset) / maxi
 		return ans
 	except:
 		logger.error('Cannot convert %s from hexadecimal to decimal'%pos)
@@ -248,6 +253,36 @@ class SynScan(Serial):
 	def init_motor(self, axis):
 		"""Initialize motor"""
 		return send_cmd(self, 'F', axis)
+		
+	def get_cpr(self, axis):
+		"""Get Counts Per Revolution"""
+		ans = send_cmd(self, 'a', axis)
+		if ans is AstrocomException:
+			return AstrocomException
+		return hexa_response_to_int(ans[1:])
+		
+	def get_tif(self, axis):
+		"""Get Timer Interrupt Frequency"""
+		ans = send_cmd(self, 'b', axis)
+		if ans is AstrocomException:
+			return AstrocomException
+		return hexa_response_to_int(ans[1:])
+		
+	def get_step_period(self, axis):
+		"""Get step period"""
+		ans = send_cmd(self, 'i', axis)
+		if ans is AstrocomException:
+			return AstrocomException
+		return hexa_response_to_int(ans[1:])
+		
+	def get_rotation_speed(self, axis):
+		"""Get rotation speed [deg/sec]"""
+		cpr = self.get_cpr(axis)
+		tif = self.get_tif(axis)
+		step = self.get_step_period(axis)
+		if AstrocomException in [cpr,tif,step]:
+			return AstrocomException
+		return tif*360/step/cpr
 		
 	def get_axis_position(self, axis):
 		"""Get axis position as ratio of turn"""
@@ -328,7 +363,7 @@ class SynScan(Serial):
 		"""Instantaneously stop motion"""
 		return send_cmd(self, 'L', axis)
 
-	def set_st4_guide_rate(self, axis, rate):
+	def set_autoguide_rate(self, axis, rate):
 		"""Set rate [0:4] <=> [1.0, 0.75, 0.50, 0.25, 0.125]"""
 		return send_cmd(self, 'P', axis, str(rate))
 		

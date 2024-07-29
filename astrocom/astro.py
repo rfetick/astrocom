@@ -8,6 +8,8 @@ from astropy.time import Time
 from astropy import units as _u
 from astropy.utils.iers import conf as _iers_config
 
+SIDERAL_DAY_SEC = 23*3600 + 56*60 + 4.09
+SOLAR_DAY_SEC = 24*3600
 
 def longitude_to_sideraltime(longitude_deg):
     """Get the current sideral time from a longitude [degree]"""

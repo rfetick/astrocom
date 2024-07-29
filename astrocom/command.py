@@ -15,8 +15,8 @@ class MountCmd(cmd.Cmd):
 	def __init__(self, portname, latitude_tpl, longitude_tpl):
 		super().__init__()
 		self.synscan = SynScan(portname)
-		self.latitude = latitude_tpl #TODO use it to get mount sky coordinates
-		self.longitude = longitude_tpl #TODO use it to get mount sky coordinates
+		self.latitude = latitude_tpl
+		self.longitude = longitude_tpl
 		if latitude_tpl[0]>=0:
 			self.synscan.north_south = self.synscan.NORTH
 		else:
@@ -43,6 +43,11 @@ class MountCmd(cmd.Cmd):
 		"""
 		self.synscan.init_motor(1)
 		self.synscan.init_motor(2)
+		speed = self.synscan.get_rotation_speed(1)
+		if speed is not AstrocomException:
+			print('Speed: %.4f °/h'%(speed*3600))
+		self.do_status(_)
+		
 		
 	def do_status(self, _):
 		"""
