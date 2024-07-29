@@ -161,16 +161,16 @@ def axis_dict_to_str(dic):
 	if not dic['INIT']:
 		return 'NOT-INITIALIZED'
 	if dic['STOP']:
-		ans += '%10s'%'STOP'
+		ans += '%8s'%'STOP'
 	else:
-		ans += '%10s'%'RUNNING'
+		ans += '%8s'%'RUNNING'
 	for k in ['TRACK','GOTO']:
 		if dic[k]:
 			ans += '%7s'%k
 	if dic['FORWARD']:
-		ans += '%10s'%'FORWARD'
+		ans += '%9s'%'FORWARD'
 	else:
-		ans += '%10s'%'BACKWARD'
+		ans += '%9s'%'BACKWARD'
 	if dic['FAST']:
 		ans += '%6s'%'FAST'
 	else:

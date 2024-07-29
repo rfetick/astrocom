@@ -58,3 +58,8 @@ DEC:    0.000°       STOP  TRACK   FORWARD  SLOW
 Motors have been stopped
 Port has been closed
 ```
+
+### References
+
+[https://inter-static.skywatcher.com/downloads/skywatcher_motor_controller_command_set.pdf](https://inter-static.skywatcher.com/downloads/skywatcher_motor_controller_command_set.pdf)
+
