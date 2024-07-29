@@ -5,11 +5,11 @@ Command line interface
 import cmd
 import datetime
 from astrocom import logger
-from astrocom.astro import longitude_to_sideraltime, dms_to_deg
+from astrocom.astro import longitude_to_sideraltime, dms_to_deg, deg_to_hms, deg_to_dms
 from astrocom.serialport import SynScan, AstrocomException
 
 class MountCmd(cmd.Cmd):
-	intro = "\nWelcome to the ASTROCOM command line.\nType help or ? to list commands.\n"
+	intro = "\n".join(("","="*30,"Welcome to the ASTROCOM command line.","Type help or ? to list commands.","="*30,""))
 	prompt = "(astrocom) "
 	
 	def __init__(self, portname, latitude_tpl, longitude_tpl):
@@ -22,9 +22,21 @@ class MountCmd(cmd.Cmd):
 		else:
 			self.synscan.north_south = self.synscan.SOUTH
 		
+	def do_help(self, _):
+		"""
+        Print help on functions
+        > help
+        """
+		fct_list = [f for f in self.__dir__() if f.startswith('do_')]
+		for f in fct_list:
+			doc = getattr(self,f).__doc__
+			doc_lines = doc.split('\n')
+			fill = max(25-len(doc_lines[1]),1)
+			print(doc_lines[1].replace("> "," "*4) + ' '*fill + doc_lines[0])
+        
 	def do_init(self, _):
 		"""
-		Initialize both motors.
+		Initialize both motors
 		> init
 		"""
 		self.synscan.init_motor(1)
@@ -32,17 +44,20 @@ class MountCmd(cmd.Cmd):
 		
 	def do_status(self, _):
 		"""
-		Get status and position of both motors.
+		Get status and position of both motors
 		> status
 		"""
 		status_1 = self.synscan.get_axis_status_as_str(1)
 		status_2 = self.synscan.get_axis_status_as_str(2)
 		position_1 = self.synscan.get_axis_position(1)
 		position_2 = self.synscan.get_axis_position(2)
+		sideral_time_deg = longitude_to_sideraltime(dms_to_deg(self.longitude)).degree
 		if (position_1 is not AstrocomException) and (status_1 is not AstrocomException):
-			print('RA : %8.3f° %s'%(360*position_1,status_1))
+			sky_ra = deg_to_hms(sideral_time_deg - 360*position_1)
+			print("""RA : %02u:%02u:%02u %s"""%(sky_ra[0], sky_ra[1], sky_ra[2], status_1))
 		if (position_2 is not AstrocomException) and (status_2 is not AstrocomException):
-			print('DEC: %8.3f° %s'%(360*position_2,status_2))
+			sky_dec = deg_to_dms(360*position_2)
+			print("""DEC: %02u°%02u'%02u" %s"""%(sky_dec[0], sky_dec[1], sky_dec[2], status_2))
 	
 	def do_time(self, arg):
 		"""
@@ -58,7 +73,7 @@ class MountCmd(cmd.Cmd):
     
 	def do_goto(self, arg):
 		"""
-		Goto position on given axis.
+		Goto position on an axis
 		> goto [axis] [degree]
 		"""
 		arg = arg.split()
@@ -70,7 +85,7 @@ class MountCmd(cmd.Cmd):
 	
 	def do_start(self, axnb):
 		"""
-		Start moving on one or both axis.
+		Start moving on one or both axis
 		> start [axis]
 		"""
 		if len(axnb)==0:
@@ -83,7 +98,7 @@ class MountCmd(cmd.Cmd):
 	
 	def do_stop(self, axnb):
 		"""
-		Stop moving on one or both axis.
+		Stop moving on one or both axis
 		> stop [axis]
 		"""
 		if len(axnb)==0:
@@ -96,7 +111,7 @@ class MountCmd(cmd.Cmd):
 			
 	def do_mode(self, arg):
 		"""
-		Define axis mode.
+		Define axis mode
 		> mode [axis] [forward backward fast slow goto track]
 		"""
 		arg = arg.split()
@@ -122,7 +137,10 @@ class MountCmd(cmd.Cmd):
 				self.do_status(None) # also show status
 			
 	def do_exit(self, arg):
-		"""Exit the command line interpreter"""
+		"""
+        Exit the command line interpreter
+        > exit
+        """
 		return True
 
 					

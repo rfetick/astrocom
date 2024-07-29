@@ -17,22 +17,6 @@ def longitude_to_sideraltime(longitude_deg):
     return observ_time.sidereal_time('apparent')
 
 
-def turn_to_hms(value):
-	"""Convert percentage of turn to (hh,mm,ss) tuple"""
-	hh = int(24*value)
-	mm = int(60*24*value - 60*hh)
-	ss = int(3600*24*value - 3600*hh - 60*mm)
-	return (hh,mm,ss)
-	
-	
-def turn_to_dms(value):
-	"""Convert percentage of turn to (degree,arcmin,arcsec) tuple"""
-	dd = int(360*value)
-	mm = int(60*360*value - 60*dd)
-	ss = int(3600*360*value - 3600*dd - 60*mm)
-	return (dd,mm,ss)
-
-
 def dms_to_deg(tpl):
     """Convert a tuple (deg, arcmin, arcsec) to degree value"""
     if len(tpl)!=3:
@@ -40,3 +24,21 @@ def dms_to_deg(tpl):
     degree = abs(tpl[0]) + tpl[1]/60 + tpl[2]/3600
     positive = tpl[0] >= 0
     return positive*degree - (not positive)*degree
+
+
+def deg_to_hms(deg):
+    """Convert degrees into (hour,min,sec) tuple"""
+    deg = deg%360
+    hh = int(24*deg/360)
+    mm = int(24*60*deg/360 - hh*60)
+    ss = round(24*3600*deg/360 - hh*3600 - mm*60)
+    return (hh,mm,ss)
+
+
+def deg_to_dms(deg):
+    """Convert degrees into (deg,arcmin,arcsec) tuple"""
+    deg = deg%360
+    dd = int(deg)
+    arcmin = int(deg*60 - dd*60)
+    arcsec = round(deg*3600 - dd*3600 - arcmin*60)
+    return (dd,arcmin,arcsec)
