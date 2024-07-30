@@ -5,7 +5,7 @@ Command line interface
 import cmd
 import datetime
 from astrocom import logger
-from astrocom.astro import sideral_time, dms_to_deg, deg_to_hms, deg_to_dms, turn_ratio_to_ra_hms
+from astrocom.astro import sideral_time, dms_to_deg, deg_to_dms, turn_ratio_to_ra_hms, read_bsc
 from astrocom.serialport import SynScan, AstrocomException
 
 class MountCmd(cmd.Cmd):
@@ -14,6 +14,7 @@ class MountCmd(cmd.Cmd):
 	
 	def __init__(self, portname, latitude_tpl, longitude_tpl):
 		super().__init__()
+		self.catalog = read_bsc()
 		self.synscan = SynScan(portname)
 		self.latitude = latitude_tpl
 		self.longitude = longitude_tpl
@@ -35,6 +36,14 @@ class MountCmd(cmd.Cmd):
 			doc_lines[2] = doc_lines[2].replace("> "," "*4).replace("\t","")
 			fill = max(26-len(doc_lines[2]),2)
 			print(doc_lines[2] + ' '*fill + doc_lines[1])
+        
+	def do_catalog(self, arg):
+		"""
+		Print bright stars list
+		> catalog [nb]
+        """
+		for i in range(int(arg[0])):
+			print(self.catalog[i])
         
 	def do_init(self, _):
 		"""

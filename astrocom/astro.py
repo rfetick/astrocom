@@ -11,6 +11,53 @@ from astropy.utils.iers import conf as _iers_config
 SIDERAL_DAY_SEC = 23*3600 + 56*60 + 4.09
 SOLAR_DAY_SEC = 24*3600
 
+
+class Star:
+    def __init__(self, sao, ra, dec, vmag, name=None, sptype=None):
+        self.sao = sao
+        self.ra = ra # tuple
+        self.dec = dec # tuple
+        self.vmag = vmag
+        self.name = name
+        self.sptype = sptype
+        
+    def __str__(self):
+        sao = 'SAO %6u'%self.sao
+        ra = '%02u:%02u:%02u'%self.ra
+        dec = """%3u°%02u'%02u" """%self.dec
+        mag = "mV=%3.1f"%self.vmag
+        return '  '.join((sao, ra, dec, mag))
+    
+    def __repr__(self):
+        return self.__str__()
+
+
+def read_bsc():
+    """Read the simplified Bright Star Catalog"""
+    stars = []
+    header = True
+    with open('bsc_simplified.txt','r') as file:
+        for line in file:
+            if not header:
+                try:
+                    elem = line.split('|')
+                    name = elem[0].replace(' ','')
+                    sao = int(elem[1])
+                    ra = (int(elem[2]), int(elem[3]), int(float(elem[4])))
+                    if '-' in elem[5]:
+                        dec_sign = -1
+                    else:
+                        dec_sign = 1
+                    dec = (dec_sign*int(elem[6]), int(elem[7]), int(elem[8]))
+                    vmag = float(elem[9])
+                    sptype = elem[10].replace(' ','')
+                    stars.append(Star(sao, ra, dec, vmag, name, sptype))
+                except:
+                    pass
+            header = False
+    return sorted(stars, key=lambda s:s.vmag) # sort by magnitude
+
+
 def sideral_time(longitude_deg):
     """Get the current sideral time from a longitude [degree]"""
     _iers_config.auto_max_age = None # remove error when too old IERS data
