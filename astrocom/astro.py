@@ -11,13 +11,30 @@ from astropy.utils.iers import conf as _iers_config
 SIDERAL_DAY_SEC = 23*3600 + 56*60 + 4.09
 SOLAR_DAY_SEC = 24*3600
 
-def longitude_to_sideraltime(longitude_deg):
+def sideral_time(longitude_deg):
     """Get the current sideral time from a longitude [degree]"""
     _iers_config.auto_max_age = None # remove error when too old IERS data
     observ_loc = EarthLocation(lat=0*_u.deg, lon=longitude_deg*_u.deg)
     observ_time = Time(datetime.datetime.utcnow(), scale='utc', location=observ_loc)
     return observ_time.sidereal_time('apparent')
 
+
+def turn_ratio_to_ra(turn_ratio, longitude_dms):
+	"""Get right ascension [°] from mount position and longitude (dd,mm,ss)"""
+	sideral_time_deg = sideral_time(dms_to_deg(longitude_dms)).degree
+	return sideral_time_deg - 360*turn_ratio
+	
+	
+def turn_ratio_to_ra_hms(*args):
+	"""Get right ascension (hh,mm,ss) from mount position and longitude (dd,mm,ss)"""
+	return deg_to_hms(turn_ratio_to_ra(*args))
+
+
+def ra_to_turn_ratio(ra_deg, longitude_dms):
+	"""Get mount position from right ascension [°] and longitude (dd,mm,ss)"""
+	sideral_time_deg = sideral_time(dms_to_deg(longitude_dms)).degree
+	return (sideral_time_deg - ra_deg)/360
+	
 
 def dms_to_deg(tpl):
     """Convert a tuple (deg, arcmin, arcsec) to degree value"""

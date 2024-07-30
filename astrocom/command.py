@@ -5,7 +5,7 @@ Command line interface
 import cmd
 import datetime
 from astrocom import logger
-from astrocom.astro import longitude_to_sideraltime, dms_to_deg, deg_to_hms, deg_to_dms
+from astrocom.astro import sideral_time, dms_to_deg, deg_to_hms, deg_to_dms, turn_ratio_to_ra_hms
 from astrocom.serialport import SynScan, AstrocomException
 
 class MountCmd(cmd.Cmd):
@@ -43,6 +43,9 @@ class MountCmd(cmd.Cmd):
 		"""
 		self.synscan.init_motor(1)
 		self.synscan.init_motor(2)
+		north = self.synscan.north_south==self.synscan.NORTH
+		print('Assume looking at the celestial pole at startup')
+		self.synscan.set_axis_position(2,(north - (not north))*0.25)
 		speed = self.synscan.get_rotation_speed(1)
 		if speed is not AstrocomException:
 			print('Speed: %.4f °/h'%(speed*3600))
@@ -58,9 +61,8 @@ class MountCmd(cmd.Cmd):
 		status_2 = self.synscan.get_axis_status_as_str(2)
 		position_1 = self.synscan.get_axis_position(1)
 		position_2 = self.synscan.get_axis_position(2)
-		sideral_time_deg = longitude_to_sideraltime(dms_to_deg(self.longitude)).degree
 		if (position_1 is not AstrocomException) and (status_1 is not AstrocomException):
-			sky_ra = deg_to_hms(sideral_time_deg - 360*position_1)
+			sky_ra = turn_ratio_to_ra_hms(position_1, self.longitude)
 			print("""RA : %02u:%02u:%02u  %s"""%(sky_ra[0], sky_ra[1], sky_ra[2], status_1))
 		if (position_2 is not AstrocomException) and (status_2 is not AstrocomException):
 			sky_dec = deg_to_dms(360*position_2)
@@ -73,7 +75,7 @@ class MountCmd(cmd.Cmd):
 		"""
 		dt_local = datetime.datetime.now()
 		dt_utc = dt_local.utcnow()
-		dt_sid = longitude_to_sideraltime(dms_to_deg(self.longitude))
+		dt_sid = sideral_time(dms_to_deg(self.longitude))
 		print('LOCAL  : %02u:%02u:%02u'%(dt_local.hour, dt_local.minute, dt_local.second))
 		print('UTC    : %02u:%02u:%02u'%(dt_utc.hour, dt_utc.minute, dt_utc.second))
 		print('SIDERAL: %02u:%02u:%02u'%dt_sid.hms)

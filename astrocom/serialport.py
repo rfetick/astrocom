@@ -11,7 +11,7 @@ from astrocom import logger
 SW_CMD = {
 'a':'GET_CPR',
 'b':'GET_TIF',
-'E':'GOTO_POSITION',
+'E':'SET_POSITION',
 'e':'GET_MOTOR_BOARD_VERSION',
 'F':'INIT_MOTOR',
 'f':'GET_AXIS_STATUS',
