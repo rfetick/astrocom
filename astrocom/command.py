@@ -22,7 +22,12 @@ class MountCmd(cmd.Cmd):
 			self.synscan.north_south = self.synscan.NORTH
 		else:
 			self.synscan.north_south = self.synscan.SOUTH
-		
+	
+	def postcmd(self, *args, **kwargs):
+		"""Print empty line at end of each command"""
+		print()
+		return super().postcmd(*args,**kwargs)
+	
 	def do_help(self, _):
 		"""
 		Print help on functions
@@ -42,6 +47,8 @@ class MountCmd(cmd.Cmd):
 		Print bright stars list
 		> catalog [nb]
         """
+		arg = arg.split()
+		print(self.catalog[0].header)
 		for i in range(int(arg[0])):
 			print(self.catalog[i])
         

@@ -2,6 +2,7 @@
 Astronomical computations
 """
 
+import os
 import datetime
 from astropy.coordinates import EarthLocation
 from astropy.time import Time
@@ -21,12 +22,17 @@ class Star:
         self.name = name
         self.sptype = sptype
         
+    @property
+    def header(self):
+    	return '%6s  %10s  %8s  %10s  %4s'%('SAO','NAME','RA','DEC','MV')
+        
     def __str__(self):
-        sao = 'SAO %6u'%self.sao
+        sao = '%6u'%self.sao
+        name = '%6s %3s'%(self.name[:-3],self.name[-3:])
         ra = '%02u:%02u:%02u'%self.ra
         dec = """%3u°%02u'%02u" """%self.dec
-        mag = "mV=%3.1f"%self.vmag
-        return '  '.join((sao, ra, dec, mag))
+        mag = "%4.1f"%self.vmag
+        return '  '.join((sao, name, ra, dec[:-1], mag))
     
     def __repr__(self):
         return self.__str__()
@@ -36,7 +42,7 @@ def read_bsc():
     """Read the simplified Bright Star Catalog"""
     stars = []
     header = True
-    with open('bsc_simplified.txt','r') as file:
+    with open(os.path.dirname(__file__)+'/bsc_simplified.txt','r') as file:
         for line in file:
             if not header:
                 try:
