@@ -5,20 +5,19 @@ Command line interface
 import cmd
 import datetime
 from astrocom import logger
-from astrocom.astro import sideral_time, dms_to_deg, deg_to_dms, turn_ratio_to_ra_hms, read_bsc
+from astrocom.astro import degree_to_dms, turn_ratio_to_ra_hms, read_bsc, cardinal_point, MountPosition
 from astrocom.serialport import SynScan, AstrocomException
 
 class MountCmd(cmd.Cmd):
 	intro = "\n".join(("","="*35,"Welcome to the ASTROCOM command line.","Type help or ? to list commands.","="*35,""))
 	prompt = "(astrocom) "
 	
-	def __init__(self, portname, latitude_tpl, longitude_tpl):
+	def __init__(self, portname, longitude, latitude):
 		super().__init__()
 		self.catalog = read_bsc()
 		self.synscan = SynScan(portname)
-		self.latitude = latitude_tpl
-		self.longitude = longitude_tpl
-		if latitude_tpl[0]>=0:
+		self.mount = MountPosition(longitude, latitude)
+		if latitude[0]>=0:
 			self.synscan.north_south = self.synscan.NORTH
 		else:
 			self.synscan.north_south = self.synscan.SOUTH
@@ -42,30 +41,38 @@ class MountCmd(cmd.Cmd):
 			fill = max(26-len(doc_lines[2]),2)
 			print(doc_lines[2] + ' '*fill + doc_lines[1])
         
-	def do_catalog(self, arg):
+	def do_bsc(self, arg):
 		"""
-		Print bright stars list
-		> catalog [nb]
+		Print stars of the Bright Star Catalog
+		> bsc [nb]
         """
 		arg = arg.split()
-		print(self.catalog[0].header)
-		for i in range(int(arg[0])):
-			print(self.catalog[i])
+		nb_star_print = 0
+		print(self.catalog[0].header + '  %4s  %2s'%('ALT','AZ'))
+		print('-'*(len(self.catalog[0].header)+10))
+		for i in range(len(self.catalog)):
+			alt,az = self.catalog[i].altaz(self.mount.longitude, self.mount.latitude)
+			if alt > 0:
+				print(self.catalog[i].__str__() + '  %3u°  %2s'%(alt,cardinal_point(az)))
+				nb_star_print += 1
+			if nb_star_print == int(arg[0]):
+				break
         
 	def do_init(self, _):
 		"""
 		Initialize motors
 		> init
 		"""
-		self.synscan.init_motor(1)
-		self.synscan.init_motor(2)
-		north = self.synscan.north_south==self.synscan.NORTH
-		print('Assume looking at the celestial pole at startup')
-		self.synscan.set_axis_position(2,(north - (not north))*0.25)
-		speed = self.synscan.get_rotation_speed(1)
-		if speed is not AstrocomException:
-			print('Speed: %.4f °/h'%(speed*3600))
-		self.do_status(_)
+		ans1 = self.synscan.init_motor(1)
+		ans2 = self.synscan.init_motor(2)
+		if not AstrocomException in [ans1,ans2]:
+			north = self.synscan.north_south==self.synscan.NORTH
+			print('Assume looking at the celestial pole at startup')
+			self.synscan.set_axis_position(2,(north - (not north))*0.25)
+			speed = self.synscan.get_rotation_speed(1)
+			if speed is not AstrocomException:
+				print('Speed: %.4f °/h'%(speed*3600))
+			self.do_status(_)
 		
 		
 	def do_status(self, _):
@@ -78,10 +85,10 @@ class MountCmd(cmd.Cmd):
 		position_1 = self.synscan.get_axis_position(1)
 		position_2 = self.synscan.get_axis_position(2)
 		if (position_1 is not AstrocomException) and (status_1 is not AstrocomException):
-			sky_ra = turn_ratio_to_ra_hms(position_1, self.longitude)
+			sky_ra = turn_ratio_to_ra_hms(position_1, self.mount.longitude)
 			print("""RA : %02u:%02u:%02u  %s"""%(sky_ra[0], sky_ra[1], sky_ra[2], status_1))
 		if (position_2 is not AstrocomException) and (status_2 is not AstrocomException):
-			sky_dec = deg_to_dms(360*position_2)
+			sky_dec = degree_to_dms(360*position_2)
 			print("""DEC: %02u°%02u'%02u" %s"""%(sky_dec[0], sky_dec[1], sky_dec[2], status_2))
 	
 	def do_time(self, arg):
@@ -91,7 +98,7 @@ class MountCmd(cmd.Cmd):
 		"""
 		dt_local = datetime.datetime.now()
 		dt_utc = dt_local.utcnow()
-		dt_sid = sideral_time(dms_to_deg(self.longitude))
+		dt_sid = self.mount.sideral_time
 		print('LOCAL  : %02u:%02u:%02u'%(dt_local.hour, dt_local.minute, dt_local.second))
 		print('UTC    : %02u:%02u:%02u'%(dt_utc.hour, dt_utc.minute, dt_utc.second))
 		print('SIDERAL: %02u:%02u:%02u'%dt_sid.hms)

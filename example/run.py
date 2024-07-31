@@ -17,7 +17,7 @@ for pp in list_ports():
 	if pp.product==productname:
 		port_found = True
 		portname = pp.device
-		mcmd = MountCmd(portname, latitude, longitude)
+		mcmd = MountCmd(portname, longitude, latitude)
 		mcmd.cmdloop()
 		
 if not port_found:

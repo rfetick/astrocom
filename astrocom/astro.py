@@ -3,39 +3,139 @@ Astronomical computations
 """
 
 import os
+import re
 import datetime
-from astropy.coordinates import EarthLocation
+import numpy as np
+from astropy.coordinates import EarthLocation, AltAz, SkyCoord
 from astropy.time import Time
 from astropy import units as _u
 from astropy.utils.iers import conf as _iers_config
+
+_iers_config.auto_max_age = None # remove error when too old IERS data
 
 SIDERAL_DAY_SEC = 23*3600 + 56*60 + 4.09
 SOLAR_DAY_SEC = 24*3600
 
 
-class Star:
-    def __init__(self, sao, ra, dec, vmag, name=None, sptype=None):
-        self.sao = sao
-        self.ra = ra # tuple
-        self.dec = dec # tuple
-        self.vmag = vmag
-        self.name = name
-        self.sptype = sptype
-        
-    @property
-    def header(self):
-    	return '%6s  %10s  %8s  %10s  %4s'%('SAO','NAME','RA','DEC','MV')
-        
-    def __str__(self):
-        sao = '%6u'%self.sao
-        name = '%6s %3s'%(self.name[:-3],self.name[-3:])
-        ra = '%02u:%02u:%02u'%self.ra
-        dec = """%3u°%02u'%02u" """%self.dec
-        mag = "%4.1f"%self.vmag
-        return '  '.join((sao, name, ra, dec[:-1], mag))
-    
-    def __repr__(self):
-        return self.__str__()
+class MountPosition:
+	"""MountPosition is located at (longitude,latitude) on Earth and observes a target"""
+	def __init__(self, longitude, latitude):
+		# Data given as degrees
+		if type(longitude) in [float, int]:
+			longitude = degree_to_dms(longitude)
+		if type(latitude) in [float, int]:
+			latitude = degree_to_dms(latitude)
+		# Data given as tuple (default)
+		self._longitude = tuple(longitude)
+		self._latitude = tuple(latitude)
+		# looks towards celestial pole at startup
+		# the relative target is defined with respect to the meridian
+		# the absolute target is defined with respect to the ra-dec system
+		#TODO: use these targets
+		self._target_relative = RaDec(0, 90*self.north-90*self.south)
+		
+	@property
+	def longitude(self):
+		return self._longitude
+		
+	@property
+	def latitude(self):
+		return self._latitude
+		
+	@property
+	def longitude_degree(self):
+		return dms_to_degree(self.longitude)
+		
+	@property
+	def latitude_degree(self):
+		return dms_to_degree(self.latitude)
+	
+	@property
+	def north(self):
+		return self.latitude[0] >= 0
+		
+	@property
+	def south(self):
+		return not self.north	
+	
+	@property
+	def sideral_time(self):
+		return sideral_time(self.longitude_degree)
+
+
+class RaDec:
+	def __init__(self, ra, dec):
+		# Data given as string '12:26:45' or '12:26'
+		if type(ra) is str:
+			ra_coord = re.findall('[0-9]+',ra)
+			ra = [0,0,0]
+			for i in range(len(ra_coord)):
+				ra[i] = int(float(ra_coord[i]))
+		if type(dec) is str:
+			dec_coord = re.findall('[0-9-]+',dec)
+			dec = [0,0,0]
+			for i in range(len(dec_coord)):
+				dec[i] = int(float(dec_coord[i]))
+		# Data given as degrees
+		if type(ra) in [float, int]:
+			ra = degree_to_hms(ra)
+		if type(dec) in [float, int]:
+			dec = degree_to_dms(dec)
+		# Data given as tuple (default)
+		self._ra = tuple(ra)
+		self._dec = tuple(dec)
+	
+	@property
+	def ra(self):
+		return self._ra
+		
+	@property
+	def dec(self):
+		return self._dec
+		
+	@property
+	def ra_degree(self):
+		return hms_to_degree(self.ra)
+		
+	@property
+	def dec_degree(self):
+		return dms_to_degree(self.dec)
+		
+	@property
+	def ra_str(self):
+		return "%02u:%02u:%02u"%self.ra
+		
+	def dec_str(self):
+		return "%3u°%02u %02u"%self.dec
+		
+	def altaz(self, latitude_tpl, longitude_tpl):
+		latitude_deg = dms_to_degree(latitude_tpl)
+		longitude_deg = dms_to_degree(longitude_tpl)
+		return radec_to_altaz(self.ra_degree, self.dec_degree, latitude_deg, longitude_deg)
+
+
+class Star(RaDec):
+	def __init__(self, ra, dec, sao, vmag, name=None, sptype=None):
+		super().__init__(ra, dec)
+		self.sao = sao
+		self.vmag = vmag
+		self.name = name
+		self.sptype = sptype
+		
+	@property
+	def header(self):
+		return '%6s  %10s  %5s  %6s  %4s'%('SAO','NAME','RA','DEC','MV')
+		
+	def __repr__(self):
+		sao = '%6u'%self.sao
+		name = '%6s %3s'%(self.name[:-3],self.name[-3:])
+		ra = '%02u:%02u'%self.ra[:-1]
+		dec = "%3u°%02u"%self.dec[:-1]
+		mag = "%4.1f"%self.vmag
+		return '  '.join((sao, name, ra, dec, mag))
+		
+	def __str__(self):
+		return self.__repr__()
 
 
 def read_bsc():
@@ -57,7 +157,7 @@ def read_bsc():
                     dec = (dec_sign*int(elem[6]), int(elem[7]), int(elem[8]))
                     vmag = float(elem[9])
                     sptype = elem[10].replace(' ','')
-                    stars.append(Star(sao, ra, dec, vmag, name, sptype))
+                    stars.append(Star(ra, dec, sao, vmag, name, sptype))
                 except:
                     pass
             header = False
@@ -65,31 +165,48 @@ def read_bsc():
 
 
 def sideral_time(longitude_deg):
-    """Get the current sideral time from a longitude [degree]"""
-    _iers_config.auto_max_age = None # remove error when too old IERS data
-    observ_loc = EarthLocation(lat=0*_u.deg, lon=longitude_deg*_u.deg)
-    observ_time = Time(datetime.datetime.utcnow(), scale='utc', location=observ_loc)
-    return observ_time.sidereal_time('apparent')
+	"""Get the current sideral time from a longitude [degree]"""
+	observ_loc = EarthLocation(lat=0*_u.deg, lon=longitude_deg*_u.deg)
+	observ_time = Time(datetime.datetime.utcnow(), scale='utc', location=observ_loc)
+	return observ_time.sidereal_time('apparent')
+
+
+def radec_to_altaz(ra_deg, dec_deg, latitude_deg, longitude_deg):
+	"""Convert RA-DEC to ALT-AZ coordinates"""
+	observ_loc = EarthLocation(lat=latitude_deg*_u.deg, lon=longitude_deg*_u.deg)
+	observ_time = Time(datetime.datetime.utcnow(), scale='utc', location=observ_loc)
+	altaz_frame = AltAz(obstime=observ_time, location=observ_loc)
+	sc = SkyCoord(ra=ra_deg*_u.deg, dec=dec_deg*_u.deg, frame='icrs')
+	sc_az = sc.transform_to(altaz_frame)
+	return sc_az.alt.value, sc_az.az.value
+
+
+def cardinal_point(az_deg):
+	"""Get cardinal point string from azimuth [°]"""
+	az_list = np.array([0, 45, 90, 135, 180, 225, 270, 315, 360])
+	az_letter = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW', 'N']
+	idx = np.argmin(np.abs(az_list-az_deg))
+	return az_letter[idx]
 
 
 def turn_ratio_to_ra(turn_ratio, longitude_dms):
 	"""Get right ascension [°] from mount position and longitude (dd,mm,ss)"""
-	sideral_time_deg = sideral_time(dms_to_deg(longitude_dms)).degree
+	sideral_time_deg = sideral_time(dms_to_degree(longitude_dms)).degree
 	return sideral_time_deg - 360*turn_ratio
 	
 	
 def turn_ratio_to_ra_hms(*args):
 	"""Get right ascension (hh,mm,ss) from mount position and longitude (dd,mm,ss)"""
-	return deg_to_hms(turn_ratio_to_ra(*args))
+	return degree_to_hms(turn_ratio_to_ra(*args))
 
 
 def ra_to_turn_ratio(ra_deg, longitude_dms):
 	"""Get mount position from right ascension [°] and longitude (dd,mm,ss)"""
-	sideral_time_deg = sideral_time(dms_to_deg(longitude_dms)).degree
+	sideral_time_deg = sideral_time(dms_to_degree(longitude_dms)).degree
 	return (sideral_time_deg - ra_deg)/360
 	
 
-def dms_to_deg(tpl):
+def dms_to_degree(tpl):
     """Convert a tuple (deg, arcmin, arcsec) to degree value"""
     if len(tpl)!=3:
         raise ValueError('Tuple must contain 3 elements (deg, arcmin, arcsec).')
@@ -98,7 +215,15 @@ def dms_to_deg(tpl):
     return positive*degree - (not positive)*degree
 
 
-def deg_to_hms(deg):
+def hms_to_degree(tpl):
+    """Convert a tuple (hh,mm,ss) to degree value"""
+    if len(tpl)!=3:
+        raise ValueError('Tuple must contain 3 elements (hh,mm,ss).')
+    degree = 360/24*(tpl[0] + tpl[1]/60 + tpl[2]/3600)
+    return degree
+
+
+def degree_to_hms(deg):
     """Convert degrees into (hour,min,sec) tuple"""
     deg = deg%360
     hh = int(24*deg/360)
@@ -107,7 +232,7 @@ def deg_to_hms(deg):
     return (hh,mm,ss)
 
 
-def deg_to_dms(deg):
+def degree_to_dms(deg):
     """Convert degrees into (deg,arcmin,arcsec) tuple"""
     deg = deg%360
     dd = int(deg)
