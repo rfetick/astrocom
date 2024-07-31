@@ -17,7 +17,74 @@ SIDERAL_DAY_SEC = 23*3600 + 56*60 + 4.09
 SOLAR_DAY_SEC = 24*3600
 
 
-class MountPosition:
+class RaDec:
+	"""An object with sky coordinates RA-DEC"""
+	def __init__(self, ra, dec):
+		self.ra = ra
+		self.dec = dec
+	
+	def __repr__(self):
+		return "RaDec %s %s"%(self.ra_str,self.dec_str)
+	
+	@property
+	def ra(self):
+		return self._ra
+		
+	@property
+	def dec(self):
+		return self._dec
+	
+	@ra.setter
+	def ra(self, val):
+		# Data given as string '12:26:45' or '12:26'
+		if type(val) is str:
+			coord = re.findall('[0-9-]+',val)
+			val = [0,0,0]
+			for i in range(len(coord)):
+				val[i] = int(float(coord[i]))
+		# Data given as degrees
+		if type(val) in [float, int]:
+			val = degree_to_hms(val)
+		# Data given as tuple (default)
+		self._ra = tuple(val)
+		
+	@dec.setter
+	def dec(self, val):
+		# Data given as string "12°26'45" or "12°26"
+		if type(val) is str:
+			coord = re.findall('[0-9-]+',val)
+			val = [0,0,0]
+			for i in range(len(coord)):
+				val[i] = int(float(coord[i]))
+		# Data given as degrees
+		if type(val) in [float, int]:
+			val = degree_to_dms(val)
+		# Data given as tuple (default)
+		self._dec = tuple(val)
+	
+	@property
+	def ra_degree(self):
+		return hms_to_degree(self.ra)
+		
+	@property
+	def dec_degree(self):
+		return dms_to_degree(self.dec)
+		
+	@property
+	def ra_str(self):
+		return "%02u:%02u:%02u"%self.ra
+		
+	@property
+	def dec_str(self):
+		return "%3u°%02u'%02u"%self.dec
+		
+	def altaz(self, latitude_tpl, longitude_tpl):
+		latitude_deg = dms_to_degree(latitude_tpl)
+		longitude_deg = dms_to_degree(longitude_tpl)
+		return radec_to_altaz(self.ra_degree, self.dec_degree, latitude_deg, longitude_deg)
+
+
+class MountPosition(RaDec):
 	"""MountPosition is located at (longitude,latitude) on Earth and observes a target"""
 	def __init__(self, longitude, latitude):
 		# Data given as degrees
@@ -29,11 +96,37 @@ class MountPosition:
 		self._longitude = tuple(longitude)
 		self._latitude = tuple(latitude)
 		# looks towards celestial pole at startup
-		# the relative target is defined with respect to the meridian
-		# the absolute target is defined with respect to the ra-dec system
-		#TODO: use these targets
-		self._target_relative = RaDec(0, 90*self.north-90*self.south)
+		# the relative target (HA,DEC) is defined with respect to the meridian
+		# the absolute target (RA,DEC) is defined with respect to the ra-dec system
+		self._target_hadec = RaDec(0, 90*self.north-90*self.south)
+	
+	def __repr__(self):
+		return "MountPosition %sN %sE"%(self.latitude_str,self.longitude_str)
+	
+	@property
+	def _ra(self):
+		return degree_to_hms(self.sideral_time.degree - self._target_hadec.ra_degree)
 		
+	@property
+	def _dec(self):
+		return self._target_hadec.dec
+	
+	@_dec.setter
+	def _dec(self, val):
+		self._target_hadec.dec = val
+	
+	@property
+	def altaz(self):
+		return super().altaz(self.latitude, self.longitude)
+	
+	@property
+	def hour_angle(self):
+		return self._target_hadec.ra
+		
+	@hour_angle.setter
+	def hour_angle(self, val):
+		self._target_hadec.ra = val
+	
 	@property
 	def longitude(self):
 		return self._longitude
@@ -51,6 +144,14 @@ class MountPosition:
 		return dms_to_degree(self.latitude)
 	
 	@property
+	def longitude_str(self):
+		return "%3u°%02u'%02u"%self.longitude
+		
+	@property
+	def latitude_str(self):
+		return "%3u°%02u'%02u"%self.latitude
+	
+	@property
 	def north(self):
 		return self.latitude[0] >= 0
 		
@@ -63,58 +164,8 @@ class MountPosition:
 		return sideral_time(self.longitude_degree)
 
 
-class RaDec:
-	def __init__(self, ra, dec):
-		# Data given as string '12:26:45' or '12:26'
-		if type(ra) is str:
-			ra_coord = re.findall('[0-9]+',ra)
-			ra = [0,0,0]
-			for i in range(len(ra_coord)):
-				ra[i] = int(float(ra_coord[i]))
-		if type(dec) is str:
-			dec_coord = re.findall('[0-9-]+',dec)
-			dec = [0,0,0]
-			for i in range(len(dec_coord)):
-				dec[i] = int(float(dec_coord[i]))
-		# Data given as degrees
-		if type(ra) in [float, int]:
-			ra = degree_to_hms(ra)
-		if type(dec) in [float, int]:
-			dec = degree_to_dms(dec)
-		# Data given as tuple (default)
-		self._ra = tuple(ra)
-		self._dec = tuple(dec)
-	
-	@property
-	def ra(self):
-		return self._ra
-		
-	@property
-	def dec(self):
-		return self._dec
-		
-	@property
-	def ra_degree(self):
-		return hms_to_degree(self.ra)
-		
-	@property
-	def dec_degree(self):
-		return dms_to_degree(self.dec)
-		
-	@property
-	def ra_str(self):
-		return "%02u:%02u:%02u"%self.ra
-		
-	def dec_str(self):
-		return "%3u°%02u %02u"%self.dec
-		
-	def altaz(self, latitude_tpl, longitude_tpl):
-		latitude_deg = dms_to_degree(latitude_tpl)
-		longitude_deg = dms_to_degree(longitude_tpl)
-		return radec_to_altaz(self.ra_degree, self.dec_degree, latitude_deg, longitude_deg)
-
-
 class Star(RaDec):
+	"""A star in the sky, inherits from RaDec class"""
 	def __init__(self, ra, dec, sao, vmag, name=None, sptype=None):
 		super().__init__(ra, dec)
 		self.sao = sao
@@ -134,34 +185,32 @@ class Star(RaDec):
 		mag = "%4.1f"%self.vmag
 		return '  '.join((sao, name, ra, dec, mag))
 		
-	def __str__(self):
-		return self.__repr__()
 
 
 def read_bsc():
-    """Read the simplified Bright Star Catalog"""
-    stars = []
-    header = True
-    with open(os.path.dirname(__file__)+'/bsc_simplified.txt','r') as file:
-        for line in file:
-            if not header:
-                try:
-                    elem = line.split('|')
-                    name = elem[0].replace(' ','')
-                    sao = int(elem[1])
-                    ra = (int(elem[2]), int(elem[3]), int(float(elem[4])))
-                    if '-' in elem[5]:
-                        dec_sign = -1
-                    else:
-                        dec_sign = 1
-                    dec = (dec_sign*int(elem[6]), int(elem[7]), int(elem[8]))
-                    vmag = float(elem[9])
-                    sptype = elem[10].replace(' ','')
-                    stars.append(Star(ra, dec, sao, vmag, name, sptype))
-                except:
-                    pass
-            header = False
-    return sorted(stars, key=lambda s:s.vmag) # sort by magnitude
+	"""Read the simplified Bright Star Catalog"""
+	stars = []
+	header = True
+	with open(os.path.dirname(__file__)+'/bsc_simplified.txt','r') as file:
+		for line in file:
+			if not header:
+				try:
+					elem = line.split('|')
+					name = elem[0].replace(' ','')
+					sao = int(elem[1])
+					ra = (int(elem[2]), int(elem[3]), int(float(elem[4])))
+					if '-' in elem[5]:
+						dec_sign = -1
+					else:
+						dec_sign = 1
+					dec = (dec_sign*int(elem[6]), int(elem[7]), int(elem[8]))
+					vmag = float(elem[9])
+					sptype = elem[10].replace(' ','')
+					stars.append(Star(ra, dec, sao, vmag, name, sptype))
+				except:
+					pass
+			header = False
+	return sorted(stars, key=lambda s:s.vmag) # sort by magnitude
 
 
 def sideral_time(longitude_deg):
@@ -189,53 +238,37 @@ def cardinal_point(az_deg):
 	return az_letter[idx]
 
 
-def turn_ratio_to_ra(turn_ratio, longitude_dms):
-	"""Get right ascension [°] from mount position and longitude (dd,mm,ss)"""
-	sideral_time_deg = sideral_time(dms_to_degree(longitude_dms)).degree
-	return sideral_time_deg - 360*turn_ratio
-	
-	
-def turn_ratio_to_ra_hms(*args):
-	"""Get right ascension (hh,mm,ss) from mount position and longitude (dd,mm,ss)"""
-	return degree_to_hms(turn_ratio_to_ra(*args))
-
-
-def ra_to_turn_ratio(ra_deg, longitude_dms):
-	"""Get mount position from right ascension [°] and longitude (dd,mm,ss)"""
-	sideral_time_deg = sideral_time(dms_to_degree(longitude_dms)).degree
-	return (sideral_time_deg - ra_deg)/360
-	
-
 def dms_to_degree(tpl):
-    """Convert a tuple (deg, arcmin, arcsec) to degree value"""
-    if len(tpl)!=3:
-        raise ValueError('Tuple must contain 3 elements (deg, arcmin, arcsec).')
-    degree = abs(tpl[0]) + tpl[1]/60 + tpl[2]/3600
-    positive = tpl[0] >= 0
-    return positive*degree - (not positive)*degree
+	"""Convert a tuple (deg, arcmin, arcsec) to degree value"""
+	if len(tpl)!=3:
+		raise ValueError('Tuple must contain 3 elements (deg, arcmin, arcsec).')
+	degree = abs(tpl[0]) + tpl[1]/60 + tpl[2]/3600
+	positive = tpl[0] >= 0
+	return positive*degree - (not positive)*degree
 
 
 def hms_to_degree(tpl):
-    """Convert a tuple (hh,mm,ss) to degree value"""
-    if len(tpl)!=3:
-        raise ValueError('Tuple must contain 3 elements (hh,mm,ss).')
-    degree = 360/24*(tpl[0] + tpl[1]/60 + tpl[2]/3600)
-    return degree
+	"""Convert a tuple (hh,mm,ss) to degree value"""
+	if len(tpl)!=3:
+		raise ValueError('Tuple must contain 3 elements (hh,mm,ss).')
+	degree = 360/24*(tpl[0] + tpl[1]/60 + tpl[2]/3600)
+	return degree
 
 
 def degree_to_hms(deg):
-    """Convert degrees into (hour,min,sec) tuple"""
-    deg = deg%360
-    hh = int(24*deg/360)
-    mm = int(24*60*deg/360 - hh*60)
-    ss = round(24*3600*deg/360 - hh*3600 - mm*60)
-    return (hh,mm,ss)
+	"""Convert degrees into (hour,min,sec) tuple"""
+	deg = deg%360
+	hh = int(24*deg/360)
+	mm = int(24*60*deg/360 - hh*60)
+	ss = round(24*3600*deg/360 - hh*3600 - mm*60)
+	return (hh,mm,ss)
 
 
 def degree_to_dms(deg):
-    """Convert degrees into (deg,arcmin,arcsec) tuple"""
-    deg = deg%360
-    dd = int(deg)
-    arcmin = int(deg*60 - dd*60)
-    arcsec = round(deg*3600 - dd*3600 - arcmin*60)
-    return (dd,arcmin,arcsec)
+	"""Convert degrees into (deg,arcmin,arcsec) tuple"""
+	deg = deg%360
+	dd = int(deg)
+	arcmin = int(deg*60 - dd*60)
+	arcsec = round(deg*3600 - dd*3600 - arcmin*60)
+	return (dd,arcmin,arcsec)
+

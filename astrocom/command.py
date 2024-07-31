@@ -5,7 +5,7 @@ Command line interface
 import cmd
 import datetime
 from astrocom import logger
-from astrocom.astro import degree_to_dms, turn_ratio_to_ra_hms, read_bsc, cardinal_point, MountPosition
+from astrocom.astro import read_bsc, cardinal_point, MountPosition
 from astrocom.serialport import SynScan, AstrocomException
 
 class MountCmd(cmd.Cmd):
@@ -85,11 +85,11 @@ class MountCmd(cmd.Cmd):
 		position_1 = self.synscan.get_axis_position(1)
 		position_2 = self.synscan.get_axis_position(2)
 		if (position_1 is not AstrocomException) and (status_1 is not AstrocomException):
-			sky_ra = turn_ratio_to_ra_hms(position_1, self.mount.longitude)
-			print("""RA : %02u:%02u:%02u  %s"""%(sky_ra[0], sky_ra[1], sky_ra[2], status_1))
+			self.mount.hour_angle = 360*position_1 # degree
+			print("""RA :  %s  %s"""%(self.mount.ra_str, status_1))
 		if (position_2 is not AstrocomException) and (status_2 is not AstrocomException):
-			sky_dec = degree_to_dms(360*position_2)
-			print("""DEC: %02u°%02u'%02u" %s"""%(sky_dec[0], sky_dec[1], sky_dec[2], status_2))
+			self.mount.dec = 360*position_2
+			print("""DEC: %s  %s"""%(self.mount.dec_str, status_2))
 	
 	def do_time(self, arg):
 		"""
