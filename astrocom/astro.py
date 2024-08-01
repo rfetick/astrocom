@@ -273,12 +273,12 @@ def hms_to_degree(tpl):
 	if len(tpl)!=3:
 		raise ValueError('Tuple must contain 3 elements (hh,mm,ss).')
 	degree = 360/24*(tpl[0] + tpl[1]/60 + tpl[2]/3600)
-	return degree
+	return degree % 360
 
 
 def degree_to_hms(deg):
 	"""Convert degrees into (hour,min,sec) tuple"""
-	deg = deg%360
+	deg = deg % 360
 	hh = int(24*deg/360)
 	mm = int(24*60*deg/360 - hh*60)
 	ss = round(24*3600*deg/360 - hh*3600 - mm*60)
@@ -287,7 +287,7 @@ def degree_to_hms(deg):
 
 def degree_to_dms(deg):
 	"""Convert degrees into (deg,arcmin,arcsec) tuple"""
-	deg = deg%360
+	deg = deg % 360
 	dd = int(deg)
 	arcmin = int(deg*60 - dd*60)
 	arcsec = round(deg*3600 - dd*3600 - arcmin*60)

@@ -141,6 +141,8 @@ class MountCmd(cmd.Cmd):
 				else:
 					logger.info('Goto <%s>'%name)
 					ha_degree = self.mount.complementary_angle(star.ra).ra_degree
+					if ha_degree > 180:
+						ha_degree = 360 - ha_degree
 					self.do_stop('')
 					self.synscan.set_goto_target(1, ha_degree/360)
 					self.do_mode('1 goto') # automatically set GOTO mode
