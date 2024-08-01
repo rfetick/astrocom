@@ -184,24 +184,26 @@ class MountPosition(RaDec):
 
 class Star(RaDec):
 	"""A star in the sky, inherits from RaDec class"""
-	def __init__(self, ra, dec, sao, vmag, name=None, sptype=None):
+	def __init__(self, ra, dec, hr, vmag, constell=None, sptype=None, vernacular=None):
 		super().__init__(ra, dec)
-		self.sao = sao
+		self.hr = hr
 		self.vmag = vmag
-		self.name = name
+		self.constell = constell
 		self.sptype = sptype
+		self.vernacular = vernacular
 		
 	@property
 	def header(self):
-		return '%6s  %10s  %5s  %6s  %4s'%('SAO','NAME','RA','DEC','MV')
+		return '%4s  %5s  %10s  %5s  %6s  %4s'%('HR','CONST','NAME','RA','DEC','MV')
 		
 	def __repr__(self):
-		sao = '%6u'%self.sao
-		name = '%6s %3s'%(self.name[:-3],self.name[-3:])
+		hr = '%4u'%self.hr
+		constell = '%5s'%self.constell[-3:]
+		name = '%10s'%self.vernacular[0:min(10,len(self.vernacular))]
 		ra = '%02u:%02u'%self.ra[:-1]
 		dec = "%3u°%02u"%self.dec[:-1]
 		mag = "%4.1f"%self.vmag
-		return '  '.join((sao, name, ra, dec, mag))
+		return '  '.join((hr, constell, name, ra, dec, mag))
 		
 
 
@@ -214,8 +216,8 @@ def read_bsc():
 			if not header:
 				try:
 					elem = line.split('|')
-					name = elem[0].replace(' ','')
-					sao = int(elem[1])
+					hr = int(elem[0])
+					constell = elem[1].replace(' ','')
 					ra = (int(elem[2]), int(elem[3]), int(float(elem[4])))
 					if '-' in elem[5]:
 						dec_sign = -1
@@ -224,7 +226,8 @@ def read_bsc():
 					dec = (dec_sign*int(elem[6]), int(elem[7]), int(elem[8]))
 					vmag = float(elem[9])
 					sptype = elem[10].replace(' ','')
-					stars.append(Star(ra, dec, sao, vmag, name, sptype))
+					vernacular = elem[11].replace(' ','')
+					stars.append(Star(ra, dec, hr, vmag, constell, sptype, vernacular=vernacular))
 				except:
 					pass
 			header = False

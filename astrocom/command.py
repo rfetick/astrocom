@@ -122,24 +122,24 @@ class MountCmd(cmd.Cmd):
     
 	def do_goto(self, arg):
 		"""
-		Define goto position with SAO number or RA-DEC coordinates
-		> goto [sao radec]
+		Define goto position with HR number, common name or RA-DEC coordinates
+		> goto [hrXXXX name ra] [dec]
 		"""
 		arg = arg.split()
 		if len(arg)==1:
-			sao = int(arg[0])
+			name = arg[0]
 			star = None
 			for s in self.catalog:
-				if s.sao == sao:
+				if name.lower() in ['hr%u'%s.hr, s.vernacular.lower()]:
 					star = s
 			if star is None:
-				logger.error('Star SAO=%s is not in the catalog'%sao)
+				logger.error('Star <%s> is not in the catalog'%name)
 			else:
 				alt,_ = star.altaz(self.mount.longitude, self.mount.latitude)
 				if alt<0:
-					logger.error('Star SAO=%s is below the horizon'%sao)
+					logger.error('Star <%s> is below the horizon'%name)
 				else:
-					logger.info('Goto SAO %u (%s)'%(star.sao,star.name))
+					logger.info('Goto <%s>'%name)
 					ha_degree = self.mount.complementary_angle(star.ra).ra_degree
 					self.do_stop('')
 					self.synscan.set_goto_target(1, ha_degree/360)
