@@ -43,7 +43,7 @@ class RaDec:
 			for i in range(len(coord)):
 				val[i] = int(float(coord[i]))
 		# Data given as degrees
-		if type(val) in [float, int]:
+		if type(val) in [float, int, np.float64]:
 			val = degree_to_hms(val)
 		# Data given as tuple (default)
 		self._ra = tuple(val)
@@ -57,7 +57,7 @@ class RaDec:
 			for i in range(len(coord)):
 				val[i] = int(float(coord[i]))
 		# Data given as degrees
-		if type(val) in [float, int]:
+		if type(val) in [float, int, np.float64]:
 			val = degree_to_dms(val)
 		# Data given as tuple (default)
 		self._dec = tuple(val)
@@ -103,12 +103,22 @@ class MountPosition(RaDec):
 	def __repr__(self):
 		return "MountPosition %sN %sE"%(self.latitude_str,self.longitude_str)
 	
+	def complementary_angle(self, ha_or_ra):
+		"""
+		Get complementary angle as:
+		RA + HA = sideral time
+		"""
+		ra_or_ha_degree = RaDec(ha_or_ra, 0).ra_degree
+		return RaDec(self.sideral_time.degree - ra_or_ha_degree, 0)
+	
 	@property
 	def _ra(self):
+		"""Target sky RA (hh,mm,ss)"""
 		return degree_to_hms(self.sideral_time.degree - self._target_hadec.ra_degree)
 		
 	@property
 	def _dec(self):
+		"""Target sky DEC (dd,arcmin,arcsec)"""
 		return self._target_hadec.dec
 	
 	@_dec.setter
@@ -117,10 +127,12 @@ class MountPosition(RaDec):
 	
 	@property
 	def altaz(self):
+		"""Get current Altitude-Azimuth of the telescope"""
 		return super().altaz(self.latitude, self.longitude)
 	
 	@property
 	def hour_angle(self):
+		"""Target sky Hour Angle"""
 		return self._target_hadec.ra
 		
 	@hour_angle.setter
@@ -129,10 +141,12 @@ class MountPosition(RaDec):
 	
 	@property
 	def longitude(self):
+		"""Telescope longitude (dd,arcmin,arcsec)"""
 		return self._longitude
 		
 	@property
 	def latitude(self):
+		"""Telescope latitude (dd,arcmin,arcsec)"""
 		return self._latitude
 		
 	@property
@@ -153,15 +167,19 @@ class MountPosition(RaDec):
 	
 	@property
 	def north(self):
+		"""Is the telescope located North"""
 		return self.latitude[0] >= 0
 		
 	@property
 	def south(self):
+		"""Is the telescope located South"""
 		return not self.north	
 	
 	@property
 	def sideral_time(self):
+		"""Get current sideral time"""
 		return sideral_time(self.longitude_degree)
+		
 
 
 class Star(RaDec):
