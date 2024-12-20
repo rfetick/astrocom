@@ -5,7 +5,7 @@ Command line interface
 import cmd
 import datetime
 from astrocom import logger, AstrocomError
-from astrocom.astro import read_bsc, cardinal_point, MountPosition, RaDec
+from astrocom.astro import read_bsc, cardinal_point, MountPosition, RaDec, print_catalog
 from astrocom.serialport import SynScan
 
 class MountCmd(cmd.Cmd):
@@ -49,16 +49,7 @@ class MountCmd(cmd.Cmd):
 		arg = arg.split()
 		if len(arg)==0:
 			arg = ['10']
-		nb_star_print = 0
-		print(self.catalog[0].header + '  %4s  %2s'%('ALT','AZ'))
-		print('-'*(len(self.catalog[0].header)+10))
-		for i in range(len(self.catalog)):
-			alt,az = self.catalog[i].altaz(self.mount.latitude, self.mount.longitude)
-			if alt > 0:
-				print(self.catalog[i].__str__() + '  %3u°  %2s'%(alt,cardinal_point(az)))
-				nb_star_print += 1
-			if nb_star_print == int(arg[0]):
-				break
+		print_catalog(self.catalog, int(arg[0]), self.mount.latitude, self.mount.longitude)
         
 	def do_init(self, _):
 		"""
@@ -141,7 +132,7 @@ class MountCmd(cmd.Cmd):
 			name = arg[0]
 			star = None
 			for s in self.catalog:
-				if name.lower() in ['hr%u'%s.hr, s.vernacular.lower()]:
+				if name.lower() in ['hr%u'%s.hr, s.name.lower()]:
 					star = s
 			if star is None:
 				AstrocomError('Star <%s> is not in the catalog'%name)

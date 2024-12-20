@@ -2,7 +2,8 @@
 Test coordinates conversion
 """
 
-from astrocom.astro import dms_to_degree, sideral_time, radec_to_altaz, hms_to_degree, read_bsc, cardinal_point
+
+from astrocom.astro import dms_to_degree, sideral_time, radec_to_altaz, hms_to_degree, read_bsc, print_catalog
 
 latitude_dms = (43,36,15) # (sign*degree, arcmin, arcsec)
 longitude_dms = (1,26,37) # (sign*degree, arcmin, arcsec) 
@@ -23,16 +24,5 @@ print('Pole   alt-az = %5.1f° %5.1f°'%north_pole_altaz)
 
 ### PRINT CATALOG
 print()
-nb_to_print = 15
-print('-'*(len(catalog[0].header)+10))
-print(catalog[0].header + '  %4s  %2s'%('ALT','AZ'))
-print('-'*(len(catalog[0].header)+10))
-for i in range(len(catalog)):
-	alt,az = catalog[i].altaz(latitude_dms, longitude_dms)
-	if alt > 0:
-		print(catalog[i].__str__() + '  %3u°  %2s'%(alt,cardinal_point(az)))
-		nb_to_print -= 1
-		if nb_to_print == 0:
-			break
-print('-'*(len(catalog[0].header)+10))
+print_catalog(catalog, 15, latitude_dms, longitude_dms)
 

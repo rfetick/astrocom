@@ -10,6 +10,7 @@ from astropy.coordinates import EarthLocation, AltAz, SkyCoord
 from astropy.time import Time
 from astropy import units as _u
 from astropy.utils.iers import conf as _iers_config
+from astrocom import COLORS
 
 _iers_config.auto_max_age = None # remove error when too old IERS data
 
@@ -184,13 +185,13 @@ class MountPosition(RaDec):
 
 class Star(RaDec):
 	"""A star in the sky, inherits from RaDec class"""
-	def __init__(self, ra, dec, hr, vmag, constell=None, sptype=None, vernacular=None):
+	def __init__(self, ra, dec, hr, vmag, constell=None, sptype=None, name=None):
 		super().__init__(ra, dec)
 		self.hr = hr
 		self.vmag = vmag
 		self.constell = constell
 		self.sptype = sptype
-		self.vernacular = vernacular
+		self.name = name
 		
 	@property
 	def header(self):
@@ -199,7 +200,7 @@ class Star(RaDec):
 	def __repr__(self):
 		hr = '%4u'%self.hr
 		constell = '%5s'%self.constell[-3:]
-		name = '%10s'%self.vernacular[0:min(10,len(self.vernacular))]
+		name = '%10s'%self.name[0:min(10,len(self.name))]
 		ra = '%02u:%02u'%self.ra[:-1]
 		dec = "%3u°%02u"%self.dec[:-1]
 		mag = "%4.1f"%self.vmag
@@ -226,12 +227,31 @@ def read_bsc():
 					dec = (dec_sign*int(elem[6]), int(elem[7]), int(elem[8]))
 					vmag = float(elem[9])
 					sptype = elem[10].replace(' ','')
-					vernacular = elem[11].replace(' ','')
-					stars.append(Star(ra, dec, hr, vmag, constell, sptype, vernacular=vernacular))
+					name = elem[11].replace(' ','')
+					stars.append(Star(ra, dec, hr, vmag, constell, sptype, name=name))
 				except:
 					pass
 			header = False
 	return sorted(stars, key=lambda s:s.vmag) # sort by magnitude
+
+
+def print_catalog(catalog, nb_to_print, latitude_dms, longitude_dms, alt_min=10):
+	"""Print the brightest stars of the catalog"""
+	print('-'*(len(catalog[0].header)+10))
+	print(catalog[0].header + '  %4s  %2s'%('ALT','AZ'))
+	print('-'*(len(catalog[0].header)+10))
+	for i in range(len(catalog)):
+		alt,az = catalog[i].altaz(latitude_dms, longitude_dms)
+		if alt >= alt_min:
+			if nb_to_print%2:
+				clr = COLORS.CYAN
+			else:
+				clr = COLORS.RESET
+			print(clr + catalog[i].__str__() + '  %3u°  %2s'%(alt,cardinal_point(az)) + COLORS.RESET)
+			nb_to_print -= 1
+			if nb_to_print == 0:
+				break
+	print('-'*(len(catalog[0].header)+10))
 
 
 def sideral_time(longitude_deg):
