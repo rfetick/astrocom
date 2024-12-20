@@ -53,7 +53,7 @@ class MountCmd(cmd.Cmd):
 		print(self.catalog[0].header + '  %4s  %2s'%('ALT','AZ'))
 		print('-'*(len(self.catalog[0].header)+10))
 		for i in range(len(self.catalog)):
-			alt,az = self.catalog[i].altaz(self.mount.longitude, self.mount.latitude)
+			alt,az = self.catalog[i].altaz(self.mount.latitude, self.mount.longitude)
 			if alt > 0:
 				print(self.catalog[i].__str__() + '  %3u°  %2s'%(alt,cardinal_point(az)))
 				nb_star_print += 1

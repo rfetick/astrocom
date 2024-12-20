@@ -227,7 +227,7 @@ class SynScan(Serial):
 		for k in SW_MODE.keys():
 			setattr(self, k, SW_MODE[k])
 			
-		logger.info('Assume at North hemisphere')
+		# logger.info('Assume at North hemisphere') # North/South will be updated afterwards
 		self.north_south = self.NORTH
 
 	def __del__(self):
