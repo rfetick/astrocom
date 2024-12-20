@@ -211,8 +211,8 @@ def read_bsc():
 	"""Read the simplified Bright Star Catalog"""
 	stars = []
 	header = True
-	with open(os.path.dirname(__file__)+'/bsc_simplified.txt','r') as file:
-		for line in file:
+	with open(os.path.dirname(__file__)+'/bsc_simplified.txt','r') as myfile:
+		for line in myfile:
 			if not header:
 				try:
 					elem = line.split('|')

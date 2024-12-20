@@ -4,9 +4,9 @@ Command line interface
 
 import cmd
 import datetime
-from astrocom import logger
+from astrocom import logger, AstrocomError
 from astrocom.astro import read_bsc, cardinal_point, MountPosition, RaDec
-from astrocom.serialport import SynScan, AstrocomException
+from astrocom.serialport import SynScan
 
 class MountCmd(cmd.Cmd):
 	intro = "\n".join(("","="*35,"Welcome to the ASTROCOM command line.","Type help or ? to list commands.","="*35,""))
@@ -47,6 +47,8 @@ class MountCmd(cmd.Cmd):
 		> bsc [nb]
         """
 		arg = arg.split()
+		if len(arg)==0:
+			arg = ['10']
 		nb_star_print = 0
 		print(self.catalog[0].header + '  %4s  %2s'%('ALT','AZ'))
 		print('-'*(len(self.catalog[0].header)+10))
@@ -65,14 +67,22 @@ class MountCmd(cmd.Cmd):
 		"""
 		ans1 = self.synscan.init_motor(1)
 		ans2 = self.synscan.init_motor(2)
-		if not AstrocomException in [ans1,ans2]:
+		if not AstrocomError in [type(ans1),type(ans2)]:
 			north = self.synscan.north_south==self.synscan.NORTH
-			print('Assume looking at the celestial pole at startup')
+			logger.info('Assume looking at the celestial pole at startup')
 			self.synscan.set_axis_position(2,(north - (not north))*0.25)
-			speed = self.synscan.get_rotation_speed(1)
-			if speed is not AstrocomException:
-				print('Speed: %.4f °/h'%(speed*3600))
 			self.do_status(_)
+		
+	def do_track(self, _):
+		"""
+		Start to track
+		> track
+		"""
+		self.do_stop("")
+		self.synscan.set_sideral_speed()
+		self.do_mode("1 forward slow track")
+		self.do_mode("2 forward slow track")
+		self.do_start("1")
 		
 	def do_status(self, _):
 		"""
@@ -85,14 +95,15 @@ class MountCmd(cmd.Cmd):
 		position_2 = self.synscan.get_axis_position(2)
 		goto_1 = self.synscan.get_goto_target(1)
 		goto_2 = self.synscan.get_goto_target(2)
-		if AstrocomException not in [status_1, position_1, goto_1]:
+		print("AXIS POSITION      GOTO  MOVING  MODE    DIR SPEED")
+		if AstrocomError not in [type(status_1), type(position_1), type(goto_1)]:
 			self.mount.hour_angle = 360*position_1 # degree
 			goto_1_str = self.mount.complementary_angle(360*goto_1).ra_str
-			print("""RA : %s ( %s) %s"""%(self.mount.ra_str, goto_1_str, status_1))
-		if AstrocomException not in [status_2, position_2, goto_2]:
+			print("""RA   %s  %s %s"""%(self.mount.ra_str, goto_1_str, status_1.lower()))
+		if AstrocomError not in [type(status_2), type(position_2), type(goto_2)]:
 			self.mount.dec = 360*position_2
 			goto_2_str = RaDec(0, 360*goto_2).dec_str
-			print("""DEC:%s (%s) %s"""%(self.mount.dec_str, goto_2_str, status_2))
+			print("""DEC %s %s %s"""%(self.mount.dec_str, goto_2_str, status_2.lower()))
 	
 	def do_time(self, arg):
 		"""
@@ -111,14 +122,14 @@ class MountCmd(cmd.Cmd):
 		Move along the RA axis
 		> ra [+-]
 		"""
-		logger.error('Not implemented yet')
+		AstrocomError('Not implemented yet')
 
 	def do_dec(self, arg):
 		"""
 		Move along the DEC axis
 		> dec [+-]
 		"""
-		logger.error('Not implemented yet')
+		AstrocomError('Not implemented yet')
     
 	def do_goto(self, arg):
 		"""
@@ -133,11 +144,11 @@ class MountCmd(cmd.Cmd):
 				if name.lower() in ['hr%u'%s.hr, s.vernacular.lower()]:
 					star = s
 			if star is None:
-				logger.error('Star <%s> is not in the catalog'%name)
+				AstrocomError('Star <%s> is not in the catalog'%name)
 			else:
 				alt,_ = star.altaz(self.mount.longitude, self.mount.latitude)
 				if alt<0:
-					logger.error('Star <%s> is below the horizon'%name)
+					AstrocomError('Star <%s> is below the horizon'%name)
 				else:
 					logger.info('Goto <%s>'%name)
 					ha_degree = self.mount.complementary_angle(star.ra).ra_degree
@@ -150,9 +161,8 @@ class MountCmd(cmd.Cmd):
 					self.do_mode('2 goto') # automatically set GOTO mode
 					self.do_status(None) # also show status
 		else:
-			logger.error('Not implemented yet')
+			AstrocomError('Not implemented yet')
 					
-	
 	def do_start(self, axnb):
 		"""
 		Start moving on one or both axis
@@ -202,7 +212,7 @@ class MountCmd(cmd.Cmd):
 				if a.upper() in ['GOTO','TRACK']:
 					goto_or_track = getattr(self.synscan, a.upper())
 			# Send
-			if (goto_or_track is not AstrocomException) and (speed is not AstrocomException) and (direction is not AstrocomException):
+			if (type(goto_or_track) is not AstrocomError) and (type(speed) is not AstrocomError) and (type(direction) is not AstrocomError):
 				self.synscan.set_motion_mode(axis, goto_or_track, speed, direction)
 			
 	def do_exit(self, arg):

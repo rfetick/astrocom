@@ -5,7 +5,8 @@ Open serial port with mount
 import serial.tools.list_ports
 from serial import Serial, PARITY_NONE
 import time
-from astrocom import logger
+from astrocom import logger, AstrocomError
+from astrocom.astro import SIDERAL_DAY_SEC
 
 ### CONSTANTS
 SW_CMD = {
@@ -49,9 +50,7 @@ SW_MODE = {
 'SLOW':0,
 'FAST':1}
 
-class AstrocomException(Exception):
-	"""Define a specific Exception to Astrocom"""
-	pass
+TIMEOUT = 0.5 # second
 
 ### FUNCTIONS
 def list_ports():
@@ -73,7 +72,7 @@ def sw_write(srl, strng):
 	srl.write(bytes(':'+strng+'\r','utf8'))
 	
 	
-def sw_read(srl, timeout=1):
+def sw_read(srl, timeout=TIMEOUT):
     """
     Get a string from the serial port.
     Ending character is chr(13) = \ r
@@ -113,31 +112,28 @@ def error_to_str(strng):
         return 'UNKNOWN_ERROR'
 
 
-def send_cmd(srl, cmd_letter, axis_int, cmd_string=''):
+def send_cmd(srl, cmd_letter, axis_int, cmd_string='', retry=2):
     """
     Send a command to the mount and read response.
     Return the mount string.
-    In case of error: fill-in the logger, return AstrocomException
+    Return AstrocomError in case of error.
     """
     if type(cmd_letter)!=str:
-    	logger.error('WRONG_INPUT_TYPE')
-    	return AstrocomException
+    	return AstrocomError('WRONG_INPUT_TYPE')
     if type(axis_int)!=int:
-    	logger.error('WRONG_INPUT_TYPE')
-    	return AstrocomException
+    	return AstrocomError('WRONG_INPUT_TYPE')
     if type(cmd_string)!=str:
-    	logger.error('WRONG_INPUT_TYPE')
-    	return AstrocomException
+    	return AstrocomError('WRONG_INPUT_TYPE')
     if axis_int in [1,2,3]: # 3=both
         sw_write(srl, cmd_letter+str(axis_int)+cmd_string)
         ans = sw_read(srl)
-        if has_error(ans):
-        	logger.error(error_to_str(ans))
-        	return AstrocomException
+        if has_error(ans) and (retry>0):
+        	ans = send_cmd(srl, cmd_letter, axis_int, cmd_string='', retry=retry-1)
+        if has_error(ans) and (retry==0):
+        	return AstrocomError(error_to_str(ans))
         return ans
     else:
-        logger.error('INVALID_AXIS_ID')
-        return AstrocomException
+        return AstrocomError('INVALID_AXIS_ID')
 
 
 def axis_status_to_dict(strng):
@@ -172,9 +168,9 @@ def axis_dict_to_str(dic):
 	else:
 		ans += '%7s'%'BCKWRD'
 	if dic['FAST']:
-		ans += '%5s'%'FAST'
+		ans += '%6s'%'FAST'
 	else:
-		ans += '%5s'%'SLOW'
+		ans += '%6s'%'SLOW'
 	return ans
 
 
@@ -182,6 +178,13 @@ def hexa_response_to_int(res):
 	"""Convert an hexadecimal response to an integer"""
 	descramble = res[4] + res[5] + res[2] + res[3] + res[0] + res[1]
 	return int(descramble, 16)
+
+
+def int_to_hexa_cmd(value_int):
+	"""Convert an integer to an hexadecimal command"""
+	hexa = hex(value_int)[2:].upper()
+	hexa = "0"*(6-len(hexa)) + hexa
+	return hexa[4] + hexa[5] + hexa[2] + hexa[3] + hexa[0] + hexa[1]
 
 
 def position_to_turn_ratio(pos):
@@ -195,8 +198,7 @@ def position_to_turn_ratio(pos):
 		ans = (hexa_response_to_int(pos) - offset) / maxi
 		return ans
 	except:
-		logger.error('Cannot convert %s from hexadecimal to decimal'%pos)
-		return AstrocomException
+		return AstrocomError('Cannot convert %s from hexadecimal to decimal'%pos)
 
 
 def turn_ratio_to_position(ratio):
@@ -207,8 +209,7 @@ def turn_ratio_to_position(ratio):
 	ratio = ratio - int(ratio) # make sure ratio between [-1,1]
 	maxi = int("F"*6,16) / 2
 	offset = int("800000",16)
-	hexa = hex(int(round(ratio*maxi + offset)))[2:].upper()
-	return hexa[4] + hexa[5] + hexa[2] + hexa[3] + hexa[0] + hexa[1]
+	return int_to_hexa_cmd(int(round(ratio*maxi + offset)))
 
 
 ### CLASS
@@ -217,7 +218,7 @@ class SynScan(Serial):
 	def __init__(self, portname):
 		"""Init a SynScan serial port"""
 		logger.info('Initialize SynScan on %s'%portname)
-		super().__init__(port=portname, baudrate=9600, parity=PARITY_NONE, stopbits=1, timeout=1)
+		super().__init__(port=portname, baudrate=9600, parity=PARITY_NONE, stopbits=1, timeout=TIMEOUT)
 		if not self.is_open:
 			self.open()
 		self.flushInput()
@@ -226,13 +227,14 @@ class SynScan(Serial):
 		for k in SW_MODE.keys():
 			setattr(self, k, SW_MODE[k])
 			
+		logger.info('Assume at North hemisphere')
 		self.north_south = self.NORTH
 
 	def __del__(self):
 		"""Delete instance, but try to close port before"""
 		try:
 			ans = self.stop_motion_now(3)
-			if ans is not AstrocomException:
+			if type(ans) is not AstrocomError:
 				logger.info('Motors have been stopped')
 			else:
 				logger.error('Could not stop motors')
@@ -257,38 +259,52 @@ class SynScan(Serial):
 	def get_cpr(self, axis):
 		"""Get Counts Per Revolution"""
 		ans = send_cmd(self, 'a', axis)
-		if ans is AstrocomException:
-			return AstrocomException
+		if type(ans) is AstrocomError:
+			return AstrocomError()
 		return hexa_response_to_int(ans[1:])
 		
 	def get_tif(self, axis):
 		"""Get Timer Interrupt Frequency"""
 		ans = send_cmd(self, 'b', axis)
-		if ans is AstrocomException:
-			return AstrocomException
+		if type(ans) is AstrocomError:
+			return AstrocomError()
 		return hexa_response_to_int(ans[1:])
 		
 	def get_step_period(self, axis):
 		"""Get step period"""
 		ans = send_cmd(self, 'i', axis)
-		if ans is AstrocomException:
-			return AstrocomException
+		if type(ans) is AstrocomError:
+			return AstrocomError()
 		return hexa_response_to_int(ans[1:])
+		
+	def set_step_period(self, axis, value_int):
+		"""Set step period"""
+		value_hexa = int_to_hexa_cmd(value_int)
+		return send_cmd(self, 'I', axis, value_hexa)
 		
 	def get_rotation_speed(self, axis):
 		"""Get rotation speed [deg/sec]"""
 		cpr = self.get_cpr(axis)
 		tif = self.get_tif(axis)
 		step = self.get_step_period(axis)
-		if AstrocomException in [cpr,tif,step]:
-			return AstrocomException
+		if AstrocomError in [type(cpr),type(tif),type(step)]:
+			return AstrocomError()
 		return tif*360/step/cpr
+		
+	def set_sideral_speed(self):
+		"""Set sideral speed on axis 1"""
+		axis = 1
+		cpr = self.get_cpr(axis)
+		tif = self.get_tif(axis)
+		speed_turn_sec = 1 / SIDERAL_DAY_SEC
+		step = int(round(tif/cpr/speed_turn_sec))
+		self.set_step_period(axis, step)
 		
 	def get_axis_position(self, axis):
 		"""Get axis position as ratio of turn"""
 		ans = send_cmd(self, 'j', axis)
-		if ans is AstrocomException:
-			return AstrocomException
+		if type(ans) is AstrocomError:
+			return AstrocomError()
 		return position_to_turn_ratio(ans[1:])
 	
 	def set_axis_position(self, axis, ratio):
@@ -304,8 +320,8 @@ class SynScan(Serial):
 	def get_goto_target(self, axis):
 		"""Get the goto target as turn ratio"""
 		ans = send_cmd(self, 'h', axis)
-		if ans is AstrocomException:
-			return AstrocomException
+		if type(ans) is AstrocomError:
+			return AstrocomError()
 		return position_to_turn_ratio(ans[1:])
 	
 	def get_axis_status(self, axis):
@@ -315,36 +331,36 @@ class SynScan(Serial):
 	def get_axis_status_as_dict(self, axis):
 		"""Get axis status as dictionary"""
 		ans = self.get_axis_status(axis)
-		if ans is AstrocomException:
-			return AstrocomException
+		if type(ans) is AstrocomError:
+			return AstrocomError()
 		return axis_status_to_dict(ans)
 	
 	def get_axis_status_speed(self, axis):
 		"""Get status speed SLOW or FAST"""
 		dic = self.get_axis_status_as_dict(axis)
-		if dic is AstrocomException:
-			return AstrocomException
+		if type(dic) is AstrocomError:
+			return AstrocomError()
 		return dic['FAST']*self.FAST + dic['SLOW']*self.SLOW
 		
 	def get_axis_status_mode(self, axis):
 		"""Get status mode TRACK or GOTO"""
 		dic = self.get_axis_status_as_dict(axis)
-		if dic is AstrocomException:
-			return AstrocomException
+		if type(dic) is AstrocomError:
+			return AstrocomError()
 		return dic['GOTO']*self.GOTO + dic['TRACK']*self.TRACK
 		
 	def get_axis_status_direction(self, axis):
 		"""Get status direction FORWARD or BACKWARD"""
 		dic = self.get_axis_status_as_dict(axis)
-		if dic is AstrocomException:
-			return AstrocomException
+		if type(dic) is AstrocomError:
+			return AstrocomError()
 		return dic['FORWARD']*self.FORWARD + dic['BACKWARD']*self.BACKWARD
 	
 	def get_axis_status_as_str(self, axis):
 		"""Get axis status as a string to print"""
 		dic = self.get_axis_status_as_dict(axis)
-		if dic is AstrocomException:
-			return AstrocomException
+		if type(dic) is AstrocomError:
+			return AstrocomError()
 		return axis_dict_to_str(dic)
 	
 	def get_motor_board_version(self, axis):
