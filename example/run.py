@@ -17,6 +17,7 @@ for pp in list_ports():
 	if pp.product==productname:
 		port_found = True
 		portname = pp.device
+		print('Initialize mount on %s'%portname)
 		mcmd = MountCmd(portname, longitude, latitude)
 		mcmd.cmdloop()
 		

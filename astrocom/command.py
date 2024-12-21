@@ -4,7 +4,7 @@ Command line interface
 
 import cmd
 import datetime
-from astrocom import logger, AstrocomError
+from astrocom import AstrocomError
 from astrocom.astro import read_bsc, cardinal_point, MountPosition, RaDec, print_catalog
 from astrocom.serialport import MountSW
 
@@ -38,12 +38,12 @@ class MountCmd(cmd.Cmd):
 			doc_lines = doc.split('\n')
 			doc_lines[1] = doc_lines[1].replace("\t","")
 			doc_lines[2] = doc_lines[2].replace("> "," "*4).replace("\t","")
-			fill = max(26-len(doc_lines[2]),2)
+			fill = max(30-len(doc_lines[2]),1)
 			print(doc_lines[2] + ' '*fill + doc_lines[1])
         
 	def do_bsc(self, arg):
 		"""
-		Print stars of the Bright Star Catalog
+		Print visible stars of the Bright Star Catalog
 		> bsc [nb]
         """
 		arg = arg.split()
@@ -62,14 +62,10 @@ class MountCmd(cmd.Cmd):
 		
 	def do_track(self, _):
 		"""
-		Start to track
+		Start sideral tracking
 		> track
 		"""
-		self.do_stop("")
-		self.mount_serial.set_sideral_speed()
-		self.do_mode("1 forward slow track")
-		self.do_mode("2 forward slow track")
-		self.do_start("1")
+		self.mount_serial.track()
 		
 	def do_status(self, _):
 		"""
@@ -106,22 +102,22 @@ class MountCmd(cmd.Cmd):
 		
 	def do_ra(self, arg):
 		"""
-		Move along the RA axis
-		> ra [+-]
+		Step move along the RA axis
+		> ra [arcmin]
 		"""
 		AstrocomError('Not implemented yet')
 
 	def do_dec(self, arg):
 		"""
-		Move along the DEC axis
-		> dec [+-]
+		Step move along the DEC axis
+		> dec [arcmin]
 		"""
 		AstrocomError('Not implemented yet')
     
 	def do_goto(self, arg):
 		"""
-		Define goto position with HR number, common name or RA-DEC coordinates
-		> goto [hrXXXX name ra] [dec]
+		Define goto position with HR number, star name or RA-DEC coord
+		> goto [hrXXXX name ra dec]
 		"""
 		arg = arg.split()
 		if len(arg)==1:
@@ -134,18 +130,15 @@ class MountCmd(cmd.Cmd):
 			if star is None:
 				AstrocomError('Star <%s> is not in the catalog'%name)
 			else:
-				alt,_ = star.altaz(self.mount_position.longitude, self.mount_position.latitude)
+				alt,_ = star.altaz(self.mount_position.latitude, self.mount_position.longitude)
 				if alt<0:
 					AstrocomError('Star <%s> is below the horizon'%name)
 				else:
-					logger.info('Goto <%s>'%name)
 					ha_degree = self.mount_position.complementary_angle(star.ra).ra_degree
-					if ha_degree > 180:
-						ha_degree = 360 - ha_degree
 					self.mount_serial.goto(ha_degree/360, star.dec_degree/360)
-					self.do_status(None) # also show status
+					self.do_status(None)
 		else:
-			AstrocomError('Not implemented yet')
+			AstrocomError('Goto ra-dec not implemented yet')
 					
 	def do_start(self, axnb):
 		"""
@@ -154,11 +147,8 @@ class MountCmd(cmd.Cmd):
 		"""
 		if len(axnb)==0:
 			 axnb = '3' # both axis if nothing provided
-		try:
-			axnb = int(axnb)
-			self.mount_serial.start_motion(axnb)
-		except:
-			logger.warning('Cannot get axis number')
+		axnb = int(axnb)
+		self.mount_serial.start_motion(axnb)
 	
 	def do_stop(self, axnb):
 		"""
@@ -167,37 +157,8 @@ class MountCmd(cmd.Cmd):
 		"""
 		if len(axnb)==0:
 			axnb = '3' # both axis if nothing provided
-		try:
-			axnb = int(axnb)
-			self.mount_serial.stop_motion(axnb)
-		except:
-			logger.warning('Cannot get axis number')
-			
-	def do_mode(self, arg):
-		"""
-		Define axis motion mode
-		> mode [axis] [forward backward fast slow goto track]
-		"""
-		arg = arg.split()
-		if len(arg)<2:
-			logger.warning('Not enough arguments')
-		else:
-			axis = int(arg[0])
-			# Get previous mode
-			goto_or_track = self.mount_serial.get_axis_status_mode(axis)
-			speed = self.mount_serial.get_axis_status_speed(axis)
-			direction = self.mount_serial.get_axis_status_direction(axis)
-			# Update if exists
-			for a in arg[1:]:
-				if a.upper() in ['FORWARD','BACKWARD']:
-					direction = getattr(self.mount_serial, a.upper())
-				if a.upper() in ['FAST','SLOW']:
-					speed = getattr(self.mount_serial, a.upper())
-				if a.upper() in ['GOTO','TRACK']:
-					goto_or_track = getattr(self.mount_serial, a.upper())
-			# Send
-			if AstrocomError not in [type(goto_or_track),type(speed), type(direction)]:
-				self.mount_serial.set_motion_mode(axis, goto_or_track, speed, direction)
+		axnb = int(axnb)
+		self.mount_serial.stop(axnb)
 			
 	def do_exit(self, arg):
 		"""
@@ -205,6 +166,4 @@ class MountCmd(cmd.Cmd):
 		> exit
         """
 		return True
-
-					
-			
+		

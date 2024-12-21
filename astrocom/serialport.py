@@ -168,8 +168,7 @@ class MountSW(Serial):
 	
 	### BASIC READ and WRITE FUNCTIONS
 	def __init__(self, portname):
-		"""Init a SynScan serial port"""
-		logger.info('Initialize SynScan on %s'%portname)
+		"""Init a MountSW serial port"""
 		super().__init__(port=portname, baudrate=9600, parity=PARITY_NONE, stopbits=1, timeout=TIMEOUT)
 		if not self.is_open:
 			self.open()
@@ -187,14 +186,14 @@ class MountSW(Serial):
 		try:
 			ans = self.stop_motion_now(3)
 			if type(ans) is not AstrocomError:
-				logger.info('Motors have been stopped')
+				AstrocomSuccess('Motors have been stopped')
 			else:
 				AstrocomError('Could not stop motors')
 		except:
 			AstrocomError('Could not stop motors')
 		try:
 			self.close()
-			logger.info('Port has been closed')
+			AstrocomSuccess('Port has been closed')
 		except:
 			AstrocomError('Port closing encountered an error')
 			
@@ -253,7 +252,7 @@ class MountSW(Serial):
 			return AstrocomError()
 		return position_to_turn_ratio(ans[1:])
 	
-	### SKY-WATCHER BASIC FUNCTIONS
+	### SKY-WATCHER BASIC FUNCTIONS (END-USER SHOULD REFRAIN USING THEM)
 	def set_motion_mode(self, axis, goto_or_track, speed, direction):
 		"""Set motion mode"""
 		if goto_or_track == self.GOTO:
@@ -358,7 +357,7 @@ class MountSW(Serial):
 		"""Set rate [0:4] <=> [1.0, 0.75, 0.50, 0.25, 0.125]"""
 		return self.send_cmd(SWCMD.SET_AUTOGUIDE_RATE, axis, str(rate))
 		
-	### COMPOSITE FUNCTIONS
+	### END-USER FUNCTIONS (SAFE TO ACCESS)
 	def init_mount(self):
 		"""Initialize the mount"""
 		ans1 = self.init_motor(1)
@@ -371,15 +370,40 @@ class MountSW(Serial):
 		else:
 			return AstrocomError('Could not initialize motors')
 	
+	def stop(self, axis):
+		"""Stop motion on one or both motors"""
+		ans = self.stop_motion(axis)
+		if type(ans) is AstrocomError:
+			return AstrocomError('Could not stop motor')
+		else:
+			return AstrocomSuccess('Motor correctly stopped')
+	
 	def goto(self, ra_ratio, dec_ratio):
 		"""Stop motors and set a goto target"""
-		self.stop_motion(3)
+		ans = self.stop_motion(3)
+		if type(ans) is AstrocomError:
+			return AstrocomError('Could not stop motors')
 		self.set_goto_target(1, ra_ratio)
 		self.set_goto_target(2, dec_ratio)
 		for axis in [1,2]:
 			speed = self.get_axis_status_speed(axis)
 			direction = self.get_axis_status_direction(axis)
-			self.set_motion_mode(axis, self.GOTO, speed, direction)
+			ans = self.set_motion_mode(axis, self.GOTO, speed, direction)
+			if type(ans) is AstrocomError:
+				return AstrocomError('Could not set goto mode')
+		return AstrocomSuccess('Goto correctly defined')
+	
+	def track(self):
+		"""Start sideral tracking"""
+		ans = self.stop_motion(3)
+		if type(ans) is AstrocomError:
+			return AstrocomError('Could not stop motors')
+		for axis in [1,2]:
+			ans = self.set_motion_mode(axis, self.TRACK, self.SLOW, self.FORWARD)
+			if type(ans) is AstrocomError:
+				return AstrocomError('Could not set tracking mode')
+		self.start_motion(1)
+		return AstrocomSuccess('Start tracking')
 	
 	def get_rotation_speed(self, axis):
 		"""Get rotation speed [deg/sec]"""
@@ -387,7 +411,7 @@ class MountSW(Serial):
 		tif = self.get_tif(axis)
 		step = self.get_step_period(axis)
 		if AstrocomError in [type(cpr),type(tif),type(step)]:
-			return AstrocomError()
+			return AstrocomError('Could not get CPR, TIF or STEP')
 		return tif*360/step/cpr
 		
 	def set_sideral_speed(self):
@@ -395,7 +419,8 @@ class MountSW(Serial):
 		axis = 1
 		cpr = self.get_cpr(axis)
 		tif = self.get_tif(axis)
-		speed_turn_sec = 1 / SIDERAL_DAY_SEC
-		step = int(round(tif/cpr/speed_turn_sec))
+		if AstrocomError in [type(cpr),type(tif)]:
+			return AstrocomError('Could not get CPR or TIF')
+		step = int(round(SIDERAL_DAY_SEC*tif/cpr))
 		return self.set_step_period(axis, step)
 		
