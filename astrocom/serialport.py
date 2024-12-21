@@ -5,28 +5,28 @@ Open serial port with mount
 import serial.tools.list_ports
 from serial import Serial, PARITY_NONE
 import time
-from astrocom import logger, AstrocomError
+from astrocom import logger, AstrocomError, AstrocomSuccess
 from astrocom.astro import SIDERAL_DAY_SEC
 
 ### CONSTANTS
-SW_CMD = {
-'a':'GET_CPR',
-'b':'GET_TIF',
-'E':'SET_POSITION',
-'e':'GET_MOTOR_BOARD_VERSION',
-'F':'INIT_MOTOR',
-'f':'GET_AXIS_STATUS',
-'j':'GET_AXIS_POSITION',
-'G':'SET_MOTION_MODE',
-'h':'GET_GOTO_POSITION',
-'I':'SET_STEP_PERIOD',
-'i':'GET_STEP_PERIOD',
-'J':'START_MOTION',
-'K':'STOP_MOTION',
-'L':'STOP_MOTION_NOW',
-'P':'SET_AUTOGUIDE_RATE',
-'S':'SET_GOTO_TARGET',
-'V':'SET_LED_BRIGHTNESS'}
+class SWCMD:
+	GET_CPR = 'a'
+	GET_TIF = 'b'
+	SET_POSITION = 'E'
+	GET_MOTOR_BOARD_VERSION = 'e'
+	INIT_MOTOR = 'F'
+	GET_AXIS_STATUS = 'f'
+	GET_AXIS_POSITION = 'j'
+	SET_MOTION_MODE = 'G'
+	GET_GOTO_POSITION = 'h'
+	SET_STEP_PERIOD = 'I'
+	GET_STEP_PERIOD = 'i'
+	START_MOTION = 'J'
+	STOP_MOTION = 'K'
+	STOP_MOTION_NOW = 'L'
+	SET_AUTOGUIDE_RATE = 'P'
+	SET_GOTO_TARGET = 'S'
+	SET_LED_BRIGHTNESS = 'V'
     
 SW_ERROR = {
 '0':'UNKNOWN_COMMAND',
@@ -65,31 +65,6 @@ def print_ports():
 		print(p.product)
 		print(p.manufacturer)
 		print()
-		
-		
-def sw_write(srl, strng):
-	"""Write a string into the serial port"""
-	srl.write(bytes(':'+strng+'\r','utf8'))
-	
-	
-def sw_read(srl, timeout=TIMEOUT):
-    """
-    Get a string from the serial port.
-    Ending character is chr(13) = \ r
-    """
-    ans = bytearray()
-    t0 = time.time()
-    t1 = time.time()
-    stop = False
-    while not stop: 
-        ans += srl.read()
-        t1 = time.time()
-        if (t1-t0)>timeout:
-            stop = True
-        if len(ans)>0:
-            if ans[-1] == 13: # chr(13) == b'\r'
-                stop = True
-    return ans.decode('utf8')
     
 
 def has_error(strng):
@@ -110,30 +85,6 @@ def error_to_str(strng):
         return SW_ERROR[error_code]
     else:
         return 'UNKNOWN_ERROR'
-
-
-def send_cmd(srl, cmd_letter, axis_int, cmd_string='', retry=2):
-    """
-    Send a command to the mount and read response.
-    Return the mount string.
-    Return AstrocomError in case of error.
-    """
-    if type(cmd_letter)!=str:
-    	return AstrocomError('WRONG_INPUT_TYPE')
-    if type(axis_int)!=int:
-    	return AstrocomError('WRONG_INPUT_TYPE')
-    if type(cmd_string)!=str:
-    	return AstrocomError('WRONG_INPUT_TYPE')
-    if axis_int in [1,2,3]: # 3=both
-        sw_write(srl, cmd_letter+str(axis_int)+cmd_string)
-        ans = sw_read(srl)
-        if has_error(ans) and (retry>0):
-        	ans = send_cmd(srl, cmd_letter, axis_int, cmd_string='', retry=retry-1)
-        if has_error(ans) and (retry==0):
-        	return AstrocomError(error_to_str(ans))
-        return ans
-    else:
-        return AstrocomError('INVALID_AXIS_ID')
 
 
 def axis_status_to_dict(strng):
@@ -213,8 +164,9 @@ def turn_ratio_to_position(ratio):
 
 
 ### CLASS
-class SynScan(Serial):
+class MountSW(Serial):
 	
+	### BASIC READ and WRITE FUNCTIONS
 	def __init__(self, portname):
 		"""Init a SynScan serial port"""
 		logger.info('Initialize SynScan on %s'%portname)
@@ -227,7 +179,7 @@ class SynScan(Serial):
 		for k in SW_MODE.keys():
 			setattr(self, k, SW_MODE[k])
 			
-		# logger.info('Assume at North hemisphere') # North/South will be updated afterwards
+		# Assume North for now, but needs to be updated by user !
 		self.north_south = self.NORTH
 
 	def __del__(self):
@@ -237,96 +189,119 @@ class SynScan(Serial):
 			if type(ans) is not AstrocomError:
 				logger.info('Motors have been stopped')
 			else:
-				logger.error('Could not stop motors')
+				AstrocomError('Could not stop motors')
 		except:
-			logger.error('Could not stop motors')
+			AstrocomError('Could not stop motors')
 		try:
 			self.close()
 			logger.info('Port has been closed')
 		except:
-			logger.error('Port closing encountered an error')
-
+			AstrocomError('Port closing encountered an error')
+			
+	def write(self, strng):
+		"""Write a string into the serial port"""
+		super().write(bytes(':'+strng+'\r','utf8'))
+		
+	def read(self):
+		"""
+		Get a string from the serial port.
+		Ending character is chr(13) = \ r
+		"""
+		ans = bytearray()
+		t0 = time.time()
+		t1 = time.time()
+		stop = False
+		while not stop: 
+		    ans += super().read()
+		    t1 = time.time()
+		    if (t1-t0)>TIMEOUT:
+		        stop = True
+		    if len(ans)>0:
+		        if ans[-1] == 13: # chr(13) == b'\r'
+		            stop = True
+		return ans.decode('utf8')
+	
+	def send_cmd(self, cmd_letter, axis_int, cmd_string='', retry=2):
+		"""
+		Send a command to the mount and read response.
+		Return the mount string or AstrocomError.
+		"""
+		if (type(cmd_letter)!=str) or (type(axis_int)!=int) or (type(cmd_string)!=str):
+			return AstrocomError('WRONG_INPUT_TYPE')
+		if axis_int in [1,2,3]: # 3=both
+		    self.write(cmd_letter+str(axis_int)+cmd_string)
+		    ans = self.read()
+		    if has_error(ans) and (retry>0):
+		    	ans = self.send_cmd(cmd_letter, axis_int, cmd_string=cmd_string, retry=retry-1)
+		    if has_error(ans) and (retry==0):
+		    	return AstrocomError(error_to_str(ans))
+		    return ans
+		else:
+		    return AstrocomError('INVALID_AXIS_ID')
+	
+	def send_cmd_hexa_ans(self, *args, **kwargs):
+		"""Send a command and decode an hexadecimal answer"""
+		ans = self.send_cmd(*args, **kwargs)
+		if type(ans) is AstrocomError:
+			return AstrocomError()
+		return hexa_response_to_int(ans[1:])
+		
+	def send_cmd_ratio_ans(self, *args, **kwargs):
+		"""Send a command and decode a ratio answer"""
+		ans = self.send_cmd(*args, **kwargs)
+		if type(ans) is AstrocomError:
+			return AstrocomError()
+		return position_to_turn_ratio(ans[1:])
+	
+	### SKY-WATCHER BASIC FUNCTIONS
 	def set_motion_mode(self, axis, goto_or_track, speed, direction):
 		"""Set motion mode"""
 		if goto_or_track == self.GOTO:
 			speed = 1 - speed # in GOTO mode, FAST and SLOW are inverted
-		return send_cmd(self, 'G', axis, str(2*speed+goto_or_track)+str(2*self.north_south+direction))
+		return self.send_cmd(SWCMD.SET_MOTION_MODE, axis, str(2*speed+goto_or_track)+str(2*self.north_south+direction))
 
 	def init_motor(self, axis):
 		"""Initialize motor"""
-		return send_cmd(self, 'F', axis)
+		return self.send_cmd(SWCMD.INIT_MOTOR, axis)
 		
 	def get_cpr(self, axis):
 		"""Get Counts Per Revolution"""
-		ans = send_cmd(self, 'a', axis)
-		if type(ans) is AstrocomError:
-			return AstrocomError()
-		return hexa_response_to_int(ans[1:])
+		return self.send_cmd_hexa_ans(SWCMD.GET_CPR, axis)
 		
 	def get_tif(self, axis):
 		"""Get Timer Interrupt Frequency"""
-		ans = send_cmd(self, 'b', axis)
-		if type(ans) is AstrocomError:
-			return AstrocomError()
-		return hexa_response_to_int(ans[1:])
+		return self.send_cmd_hexa_ans(SWCMD.GET_TIF, axis)
 		
 	def get_step_period(self, axis):
 		"""Get step period"""
-		ans = send_cmd(self, 'i', axis)
-		if type(ans) is AstrocomError:
-			return AstrocomError()
-		return hexa_response_to_int(ans[1:])
+		return self.send_cmd_hexa_ans(SWCMD.GET_STEP_PERIOD, axis)
 		
 	def set_step_period(self, axis, value_int):
 		"""Set step period"""
 		value_hexa = int_to_hexa_cmd(value_int)
-		return send_cmd(self, 'I', axis, value_hexa)
-		
-	def get_rotation_speed(self, axis):
-		"""Get rotation speed [deg/sec]"""
-		cpr = self.get_cpr(axis)
-		tif = self.get_tif(axis)
-		step = self.get_step_period(axis)
-		if AstrocomError in [type(cpr),type(tif),type(step)]:
-			return AstrocomError()
-		return tif*360/step/cpr
-		
-	def set_sideral_speed(self):
-		"""Set sideral speed on axis 1"""
-		axis = 1
-		cpr = self.get_cpr(axis)
-		tif = self.get_tif(axis)
-		speed_turn_sec = 1 / SIDERAL_DAY_SEC
-		step = int(round(tif/cpr/speed_turn_sec))
-		self.set_step_period(axis, step)
+		return self.send_cmd(SWCMD.SET_STEP_PERIOD, axis, value_hexa)
 		
 	def get_axis_position(self, axis):
 		"""Get axis position as ratio of turn"""
-		ans = send_cmd(self, 'j', axis)
-		if type(ans) is AstrocomError:
-			return AstrocomError()
-		return position_to_turn_ratio(ans[1:])
+		return self.send_cmd_ratio_ans(SWCMD.GET_AXIS_POSITION, axis)
 	
 	def set_axis_position(self, axis, ratio):
 		"""Set axis position from a turn ratio"""
 		pos = turn_ratio_to_position(ratio)
-		return send_cmd(self, 'E', axis, pos)
+		return self.send_cmd(SWCMD.SET_POSITION, axis, pos)
 	
 	def set_goto_target(self, axis, ratio):
 		"""Set goto target from a turn ratio"""
 		pos = turn_ratio_to_position(ratio)
-		return send_cmd(self, 'S', axis, pos)
+		return self.send_cmd(SWCMD.SET_GOTO_TARGET, axis, pos)
 	
 	def get_goto_target(self, axis):
 		"""Get the goto target as turn ratio"""
-		ans = send_cmd(self, 'h', axis)
-		if type(ans) is AstrocomError:
-			return AstrocomError()
-		return position_to_turn_ratio(ans[1:])
+		return self.send_cmd_ratio_ans(SWCMD.GET_GOTO_POSITION, axis)
 	
 	def get_axis_status(self, axis):
 		"""Get axis status"""
-		return send_cmd(self, 'f', axis)
+		return self.send_cmd(SWCMD.GET_AXIS_STATUS, axis)
 		
 	def get_axis_status_as_dict(self, axis):
 		"""Get axis status as dictionary"""
@@ -365,21 +340,62 @@ class SynScan(Serial):
 	
 	def get_motor_board_version(self, axis):
 		"""Get motor board version"""
-		return send_cmd(self, 'e', axis)
+		return self.send_cmd(SWCMD.GET_MOTOR_BOARD_VERSION, axis)
 	
 	def start_motion(self, axis):
 		"""Start motion"""
-		return send_cmd(self, 'J', axis)
+		return self.send_cmd(SWCMD.START_MOTION, axis)
 
 	def stop_motion(self, axis):
 		"""Stop motion"""
-		return send_cmd(self, 'K', axis)
+		return self.send_cmd(SWCMD.STOP_MOTION, axis)
 		
 	def stop_motion_now(self, axis):
 		"""Instantaneously stop motion"""
-		return send_cmd(self, 'L', axis)
+		return self.send_cmd(SWCMD.STOP_MOTION_NOW, axis)
 
 	def set_autoguide_rate(self, axis, rate):
 		"""Set rate [0:4] <=> [1.0, 0.75, 0.50, 0.25, 0.125]"""
-		return send_cmd(self, 'P', axis, str(rate))
+		return self.send_cmd(SWCMD.SET_AUTOGUIDE_RATE, axis, str(rate))
+		
+	### COMPOSITE FUNCTIONS
+	def init_mount(self):
+		"""Initialize the mount"""
+		ans1 = self.init_motor(1)
+		ans2 = self.init_motor(2)
+		if not AstrocomError in [type(ans1),type(ans2)]:
+			north = self.north_south==self.NORTH
+			logger.info('Assume looking at the celestial pole at startup')
+			self.set_axis_position(2,(north - (not north))*0.25)
+			return AstrocomSuccess('Motors correctly initialized')
+		else:
+			return AstrocomError('Could not initialize motors')
+	
+	def goto(self, ra_ratio, dec_ratio):
+		"""Stop motors and set a goto target"""
+		self.stop_motion(3)
+		self.set_goto_target(1, ra_ratio)
+		self.set_goto_target(2, dec_ratio)
+		for axis in [1,2]:
+			speed = self.get_axis_status_speed(axis)
+			direction = self.get_axis_status_direction(axis)
+			self.set_motion_mode(axis, self.GOTO, speed, direction)
+	
+	def get_rotation_speed(self, axis):
+		"""Get rotation speed [deg/sec]"""
+		cpr = self.get_cpr(axis)
+		tif = self.get_tif(axis)
+		step = self.get_step_period(axis)
+		if AstrocomError in [type(cpr),type(tif),type(step)]:
+			return AstrocomError()
+		return tif*360/step/cpr
+		
+	def set_sideral_speed(self):
+		"""Set sideral speed on axis 1"""
+		axis = 1
+		cpr = self.get_cpr(axis)
+		tif = self.get_tif(axis)
+		speed_turn_sec = 1 / SIDERAL_DAY_SEC
+		step = int(round(tif/cpr/speed_turn_sec))
+		return self.set_step_period(axis, step)
 		

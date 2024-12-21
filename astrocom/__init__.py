@@ -32,8 +32,12 @@ logger.setLevel(_logging.INFO)
 
 class AstrocomError(Exception):
 	"""Define a specific Exception to Astrocom"""
-	def __init__(self, msg):
-		logger.error(msg)
+	def __init__(self, *args):
+		logger.error(*args)
+
+class AstrocomSuccess:
+	def __init__(self, *args):
+		logger.info(*args)
 
 ### IMPORT MODULES
 from . import astro
