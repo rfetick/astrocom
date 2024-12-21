@@ -27,6 +27,7 @@ class SWCMD:
 	SET_AUTOGUIDE_RATE = 'P'
 	SET_GOTO_TARGET = 'S'
 	SET_LED_BRIGHTNESS = 'V'
+	GET_HIGH_SPEED_RATIO = 'g'
     
 SW_ERROR = {
 '0':'UNKNOWN_COMMAND',
@@ -127,7 +128,14 @@ def axis_dict_to_str(dic):
 
 def hexa_response_to_int(res):
 	"""Convert an hexadecimal response to an integer"""
-	descramble = res[4] + res[5] + res[2] + res[3] + res[0] + res[1]
+	if len(res) == 6:
+		descramble = res[4] + res[5] + res[2] + res[3] + res[0] + res[1]
+	elif len(res) == 4:
+		descramble = res[2] + res[3] + res[0] + res[1]
+	elif len(res) == 2:
+		descramble = res[0] + res[1]
+	else:
+		return AstrocomError('Uncompatible length to decode hexadecimal <%s>'%res)
 	return int(descramble, 16)
 
 
@@ -243,14 +251,14 @@ class MountSW(Serial):
 		ans = self.send_cmd(*args, **kwargs)
 		if type(ans) is AstrocomError:
 			return AstrocomError()
-		return hexa_response_to_int(ans[1:])
+		return hexa_response_to_int(ans[1:-1])
 		
 	def send_cmd_ratio_ans(self, *args, **kwargs):
 		"""Send a command and decode a ratio answer"""
 		ans = self.send_cmd(*args, **kwargs)
 		if type(ans) is AstrocomError:
 			return AstrocomError()
-		return position_to_turn_ratio(ans[1:])
+		return position_to_turn_ratio(ans[1:-1])
 	
 	### SKY-WATCHER BASIC FUNCTIONS (END-USER SHOULD REFRAIN USING THEM)
 	def set_motion_mode(self, axis, goto_or_track, speed, direction):
@@ -339,7 +347,7 @@ class MountSW(Serial):
 	
 	def get_motor_board_version(self, axis):
 		"""Get motor board version"""
-		return self.send_cmd(SWCMD.GET_MOTOR_BOARD_VERSION, axis)
+		return self.send_cmd_hexa_ans(SWCMD.GET_MOTOR_BOARD_VERSION, axis)
 	
 	def start_motion(self, axis):
 		"""Start motion"""
@@ -356,6 +364,10 @@ class MountSW(Serial):
 	def set_autoguide_rate(self, axis, rate):
 		"""Set rate [0:4] <=> [1.0, 0.75, 0.50, 0.25, 0.125]"""
 		return self.send_cmd(SWCMD.SET_AUTOGUIDE_RATE, axis, str(rate))
+		
+	def get_high_speed_ratio(self, axis):
+		"""Get high speed ratio"""
+		return self.send_cmd_hexa_ans(SWCMD.GET_HIGH_SPEED_RATIO, axis)
 		
 	### END-USER FUNCTIONS (SAFE TO ACCESS)
 	def init_mount(self):
