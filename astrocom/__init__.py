@@ -27,7 +27,7 @@ class COLORS:
 import logging as _logging
 
 logger = _logging.getLogger('astrocom')
-_logging.basicConfig(format='%(levelname)s :: %(message)s')
+_logging.basicConfig(format=COLORS.YELLOW+'%(levelname)s :: %(message)s'+COLORS.RESET)
 logger.setLevel(_logging.INFO)
 
 class AstrocomError(Exception):

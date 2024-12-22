@@ -15,8 +15,8 @@ class MountCmd(cmd.Cmd):
 	def __init__(self, portname, longitude, latitude):
 		super().__init__()
 		self.catalog = read_bsc()
-		self.mount_serial = MountSW(portname)
 		self.mount_position = MountPosition(longitude, latitude)
+		self.mount_serial = MountSW(portname)
 		if latitude[0]>=0:
 			self.mount_serial.north_south = self.mount_serial.NORTH
 		else:
@@ -74,10 +74,8 @@ class MountCmd(cmd.Cmd):
 		"""
 		status_1 = self.mount_serial.get_axis_status_as_str(1)
 		status_2 = self.mount_serial.get_axis_status_as_str(2)
-		position_1 = self.mount_serial.get_axis_position(1)
-		position_2 = self.mount_serial.get_axis_position(2)
-		goto_1 = self.mount_serial.get_goto_target(1)
-		goto_2 = self.mount_serial.get_goto_target(2)
+		position_1, position_2 = self.mount_serial.get_position()
+		goto_1, goto_2 = self.mount_serial.get_goto()
 		print("AXIS POSITION      GOTO  MOVING  MODE    DIR SPEED")
 		if AstrocomError not in [type(status_1), type(position_1), type(goto_1)]:
 			self.mount_position.hour_angle = 360*position_1 # degree
@@ -137,8 +135,13 @@ class MountCmd(cmd.Cmd):
 					ha_degree = self.mount_position.complementary_angle(star.ra).ra_degree
 					self.mount_serial.goto(ha_degree/360, star.dec_degree/360)
 					self.do_status(None)
+		elif len(arg)==2:
+			star = RaDec(arg[0], arg[1])
+			ha_degree = self.mount_position.complementary_angle(star.ra).ra_degree
+			self.mount_serial.goto(ha_degree/360, star.dec_degree/360)
+			self.do_status(None)
 		else:
-			AstrocomError('Goto ra-dec not implemented yet')
+			AstrocomError('Goto does not accept more than 2 elements')
 					
 	def do_start(self, axnb):
 		"""
@@ -148,7 +151,7 @@ class MountCmd(cmd.Cmd):
 		if len(axnb)==0:
 			 axnb = '3' # both axis if nothing provided
 		axnb = int(axnb)
-		self.mount_serial.start_motion(axnb)
+		self.mount_serial.start(axnb)
 	
 	def do_stop(self, axnb):
 		"""

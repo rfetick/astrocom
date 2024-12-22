@@ -69,12 +69,14 @@ def print_ports():
     
 
 def has_error(strng):
-    """Check if the string is valid or not (empty or includes error pattern)"""
-    if len(strng)==0:
-        return True
-    if '!' in strng:
-        return True
-    return False
+	"""Check if the string is valid or not (empty or includes error pattern)"""
+	if type(strng) is AstrocomError:
+		return True
+	if len(strng)==0:
+		return True
+	if '!' in strng:
+		return True
+	return False
 
 
 def error_to_str(strng):
@@ -226,7 +228,11 @@ class MountSW(Serial):
 		    if len(ans)>0:
 		        if ans[-1] == 13: # chr(13) == b'\r'
 		            stop = True
-		return ans.decode('utf8')
+		try:
+			ans = ans.decode('utf8')
+			return ans
+		except:
+			return AstrocomError('Could not decode data')
 	
 	def send_cmd(self, cmd_letter, axis_int, cmd_string='', retry=2):
 		"""
@@ -382,6 +388,18 @@ class MountSW(Serial):
 		else:
 			return AstrocomError('Could not initialize motors')
 	
+	def get_position(self):
+		"""Get current mount position (as fraction of turn)"""
+		ra_ratio = self.get_axis_position(1)
+		dec_ratio = self.get_axis_position(2)
+		return ra_ratio, dec_ratio
+		
+	def get_goto(self):
+		"""Get current goto target (as fraction of turn)"""
+		ra_ratio = self.get_goto_target(1)
+		dec_ratio = self.get_goto_target(2)
+		return ra_ratio, dec_ratio
+	
 	def stop(self, axis):
 		"""Stop motion on one or both motors"""
 		ans = self.stop_motion(axis)
@@ -390,8 +408,18 @@ class MountSW(Serial):
 		else:
 			return AstrocomSuccess('Motor correctly stopped')
 	
+	def start(self, axis):
+		"""Start motion on one or both motors"""
+		ans = self.start_motion(axis)
+		if type(ans) is AstrocomError:
+			return AstrocomError('Could not start motor')
+		else:
+			return AstrocomSuccess('Motor started')
+	
 	def goto(self, ra_ratio, dec_ratio):
-		"""Stop motors and set a goto target"""
+		"""Stop motors and set a goto target (as fraction of turn)"""
+		ra_ratio = ((ra_ratio+0.5)%1) - 0.5
+		dec_ratio = ((dec_ratio+0.5)%1) - 0.5
 		ans = self.stop_motion(3)
 		if type(ans) is AstrocomError:
 			return AstrocomError('Could not stop motors')
@@ -418,7 +446,7 @@ class MountSW(Serial):
 		return AstrocomSuccess('Start tracking')
 	
 	def get_rotation_speed(self, axis):
-		"""Get rotation speed [deg/sec]"""
+		"""Get rotation speed (deg/sec)"""
 		cpr = self.get_cpr(axis)
 		tif = self.get_tif(axis)
 		step = self.get_step_period(axis)
@@ -427,7 +455,7 @@ class MountSW(Serial):
 		return tif*360/step/cpr
 		
 	def set_sideral_speed(self):
-		"""Set sideral speed on axis 1"""
+		"""Set sideral speed on the Right-Ascension axis"""
 		axis = 1
 		cpr = self.get_cpr(axis)
 		tif = self.get_tif(axis)
