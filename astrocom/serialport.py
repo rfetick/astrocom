@@ -51,6 +51,10 @@ SW_MODE = {
 'SLOW':0,
 'FAST':1}
 
+SW_POS_MAXI = int("F"*6,16) / 2.0
+SW_POS_OFFSET = int("800000",16)
+SW_POS_STEP = 1.0 / SW_POS_MAXI
+
 TIMEOUT = 0.5 # second
 
 ### FUNCTIONS
@@ -80,14 +84,16 @@ def has_error(strng):
 
 
 def error_to_str(strng):
-    """Decode error to human format"""
-    if len(strng)==0:
-        return 'EMPTY_ANSWER'
-    error_code = strng[1:]
-    if error_code in SW_ERROR.keys():
-        return SW_ERROR[error_code]
-    else:
-        return 'UNKNOWN_ERROR'
+	"""Decode error to human format"""
+	if type(strng) is AstrocomError:
+		return 'ASTROCOM_ERROR'
+	if len(strng)==0:
+		return 'EMPTY_ANSWER'
+	error_code = strng[1:]
+	if error_code in SW_ERROR.keys():
+		return SW_ERROR[error_code]
+	else:
+		return 'UNKNOWN_ERROR'
 
 
 def axis_status_to_dict(strng):
@@ -153,10 +159,8 @@ def position_to_turn_ratio(pos):
 	Convert a mount position string to a turn ratio [-1,+1].
 	hexa=0x123456 -> pos=563412
 	"""
-	maxi = int("F"*6,16) / 2
-	offset = int("800000",16)
 	try:
-		ans = (hexa_response_to_int(pos) - offset) / maxi
+		ans = (hexa_response_to_int(pos) - SW_POS_OFFSET) / SW_POS_MAXI
 		return ans
 	except:
 		return AstrocomError('Cannot convert %s from hexadecimal to decimal'%pos)
@@ -168,9 +172,7 @@ def turn_ratio_to_position(ratio):
 	hexa=0x123456 -> pos=563412
 	"""
 	ratio = ratio - int(ratio) # make sure ratio between [-1,1]
-	maxi = int("F"*6,16) / 2
-	offset = int("800000",16)
-	return int_to_hexa_cmd(int(round(ratio*maxi + offset)))
+	return int_to_hexa_cmd(int(round(ratio*SW_POS_MAXI + SW_POS_OFFSET)))
 
 
 ### CLASS
@@ -256,14 +258,14 @@ class MountSW(Serial):
 		"""Send a command and decode an hexadecimal answer"""
 		ans = self.send_cmd(*args, **kwargs)
 		if type(ans) is AstrocomError:
-			return AstrocomError()
+			return ans
 		return hexa_response_to_int(ans[1:-1])
 		
 	def send_cmd_ratio_ans(self, *args, **kwargs):
 		"""Send a command and decode a ratio answer"""
 		ans = self.send_cmd(*args, **kwargs)
 		if type(ans) is AstrocomError:
-			return AstrocomError()
+			return ans
 		return position_to_turn_ratio(ans[1:-1])
 	
 	### SKY-WATCHER BASIC FUNCTIONS (END-USER SHOULD REFRAIN USING THEM)
@@ -320,35 +322,35 @@ class MountSW(Serial):
 		"""Get axis status as dictionary"""
 		ans = self.get_axis_status(axis)
 		if type(ans) is AstrocomError:
-			return AstrocomError()
+			return ans
 		return axis_status_to_dict(ans)
 	
 	def get_axis_status_speed(self, axis):
 		"""Get status speed SLOW or FAST"""
 		dic = self.get_axis_status_as_dict(axis)
 		if type(dic) is AstrocomError:
-			return AstrocomError()
+			return dic
 		return dic['FAST']*self.FAST + dic['SLOW']*self.SLOW
 		
 	def get_axis_status_mode(self, axis):
 		"""Get status mode TRACK or GOTO"""
 		dic = self.get_axis_status_as_dict(axis)
 		if type(dic) is AstrocomError:
-			return AstrocomError()
+			return dic
 		return dic['GOTO']*self.GOTO + dic['TRACK']*self.TRACK
 		
 	def get_axis_status_direction(self, axis):
 		"""Get status direction FORWARD or BACKWARD"""
 		dic = self.get_axis_status_as_dict(axis)
 		if type(dic) is AstrocomError:
-			return AstrocomError()
+			return dic
 		return dic['FORWARD']*self.FORWARD + dic['BACKWARD']*self.BACKWARD
 	
 	def get_axis_status_as_str(self, axis):
 		"""Get axis status as a string to print"""
 		dic = self.get_axis_status_as_dict(axis)
 		if type(dic) is AstrocomError:
-			return AstrocomError()
+			return dic
 		return axis_dict_to_str(dic)
 	
 	def get_motor_board_version(self, axis):
@@ -392,6 +394,8 @@ class MountSW(Serial):
 		"""Get current mount position (as fraction of turn)"""
 		ra_ratio = self.get_axis_position(1)
 		dec_ratio = self.get_axis_position(2)
+		if abs(dec_ratio - 0.25) < SW_POS_STEP:
+			logger.info('RA poorly determined close to the Pole')
 		return ra_ratio, dec_ratio
 		
 	def get_goto(self):
@@ -404,7 +408,7 @@ class MountSW(Serial):
 		"""Stop motion on one or both motors"""
 		ans = self.stop_motion(axis)
 		if type(ans) is AstrocomError:
-			return AstrocomError('Could not stop motor')
+			return ans
 		else:
 			return AstrocomSuccess('Motor correctly stopped')
 	
@@ -412,7 +416,7 @@ class MountSW(Serial):
 		"""Start motion on one or both motors"""
 		ans = self.start_motion(axis)
 		if type(ans) is AstrocomError:
-			return AstrocomError('Could not start motor')
+			return ans
 		else:
 			return AstrocomSuccess('Motor started')
 	
@@ -422,7 +426,7 @@ class MountSW(Serial):
 		dec_ratio = ((dec_ratio+0.5)%1) - 0.5
 		ans = self.stop_motion(3)
 		if type(ans) is AstrocomError:
-			return AstrocomError('Could not stop motors')
+			return ans
 		self.set_goto_target(1, ra_ratio)
 		self.set_goto_target(2, dec_ratio)
 		for axis in [1,2]:
@@ -430,18 +434,18 @@ class MountSW(Serial):
 			direction = self.get_axis_status_direction(axis)
 			ans = self.set_motion_mode(axis, self.GOTO, speed, direction)
 			if type(ans) is AstrocomError:
-				return AstrocomError('Could not set goto mode')
+				return ans
 		return AstrocomSuccess('Goto correctly defined')
 	
 	def track(self):
 		"""Start sideral tracking"""
 		ans = self.stop_motion(3)
 		if type(ans) is AstrocomError:
-			return AstrocomError('Could not stop motors')
+			return ans
 		for axis in [1,2]:
 			ans = self.set_motion_mode(axis, self.TRACK, self.SLOW, self.FORWARD)
 			if type(ans) is AstrocomError:
-				return AstrocomError('Could not set tracking mode')
+				return ans
 		self.start_motion(1)
 		return AstrocomSuccess('Start tracking')
 	

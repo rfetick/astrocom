@@ -60,32 +60,6 @@ class MountCmd(cmd.Cmd):
 		if type(ans) is not AstrocomError:
 			self.do_status(_)
 		
-	def do_track(self, _):
-		"""
-		Start sideral tracking
-		> track
-		"""
-		self.mount_serial.track()
-		
-	def do_status(self, _):
-		"""
-		Print status and position of motors
-		> status
-		"""
-		status_1 = self.mount_serial.get_axis_status_as_str(1)
-		status_2 = self.mount_serial.get_axis_status_as_str(2)
-		position_1, position_2 = self.mount_serial.get_position()
-		goto_1, goto_2 = self.mount_serial.get_goto()
-		print("AXIS POSITION      GOTO  MOVING  MODE    DIR SPEED")
-		if AstrocomError not in [type(status_1), type(position_1), type(goto_1)]:
-			self.mount_position.hour_angle = 360*position_1 # degree
-			goto_1_str = self.mount_position.complementary_angle(360*goto_1).ra_str
-			print("""RA   %s  %s %s"""%(self.mount_position.ra_str, goto_1_str, status_1.lower()))
-		if AstrocomError not in [type(status_2), type(position_2), type(goto_2)]:
-			self.mount_position.dec = 360*position_2
-			goto_2_str = RaDec(0, 360*goto_2).dec_str
-			print("""DEC %s %s %s"""%(self.mount_position.dec_str, goto_2_str, status_2.lower()))
-	
 	def do_time(self, arg):
 		"""
 		Print current time
@@ -111,6 +85,32 @@ class MountCmd(cmd.Cmd):
 		> dec [arcmin]
 		"""
 		AstrocomError('Not implemented yet')
+		
+	def do_track(self, _):
+		"""
+		Start sideral tracking
+		> track
+		"""
+		self.mount_serial.track()
+		
+	def do_status(self, _):
+		"""
+		Print status and position of motors
+		> status
+		"""
+		status_1 = self.mount_serial.get_axis_status_as_str(1)
+		status_2 = self.mount_serial.get_axis_status_as_str(2)
+		position_1, position_2 = self.mount_serial.get_position()
+		goto_1, goto_2 = self.mount_serial.get_goto()
+		print("AXIS POSITION      GOTO  MOVING  MODE    DIR SPEED")
+		if AstrocomError not in [type(status_1), type(position_1), type(goto_1)]:
+			self.mount_position.hour_angle = 360*position_1 # degree
+			goto_1_str = self.mount_position.complementary_angle(360*goto_1).ra_str
+			print("""RA   %s  %s %s"""%(self.mount_position.ra_str, goto_1_str, status_1.lower()))
+		if AstrocomError not in [type(status_2), type(position_2), type(goto_2)]:
+			self.mount_position.dec = 360*position_2
+			goto_2_str = RaDec(0, 360*goto_2).dec_str
+			print("""DEC %s %s %s"""%(self.mount_position.dec_str, goto_2_str, status_2.lower()))
     
 	def do_goto(self, arg):
 		"""
