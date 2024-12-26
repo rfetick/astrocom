@@ -120,21 +120,25 @@ class MountCmd(cmd.Cmd):
 		arg = arg.split()
 		if len(arg)==1:
 			name = arg[0]
-			star = None
-			for s in self.catalog:
-				if name.lower() in ['hr%u'%s.hr, s.name.lower()]:
-					star = s
-					break
-			if star is None:
-				AstrocomError('Star <%s> is not in the catalog'%name)
+			if name.lower() == 'home':
+				self.mount_serial.goto_home()
+				self.do_status(None)
 			else:
-				alt,_ = star.altaz(self.mount_position.latitude, self.mount_position.longitude)
-				if alt<0:
-					AstrocomError('Star <%s> is below the horizon'%name)
+				star = None
+				for s in self.catalog:
+					if name.lower() in ['hr%u'%s.hr, s.name.lower()]:
+						star = s
+						break
+				if star is None:
+					AstrocomError('Star <%s> is not in the catalog'%name)
 				else:
-					ha_degree = self.mount_position.complementary_angle(star.ra).ra_degree
-					self.mount_serial.goto(ha_degree/360, star.dec_degree/360)
-					self.do_status(None)
+					alt,_ = star.altaz(self.mount_position.latitude, self.mount_position.longitude)
+					if alt<0:
+						AstrocomError('Star <%s> is below the horizon'%name)
+					else:
+						ha_degree = self.mount_position.complementary_angle(star.ra).ra_degree
+						self.mount_serial.goto(ha_degree/360, star.dec_degree/360)
+						self.do_status(None)
 		elif len(arg)==2:
 			star = RaDec(arg[0], arg[1])
 			ha_degree = self.mount_position.complementary_angle(star.ra).ra_degree

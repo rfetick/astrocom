@@ -1,12 +1,15 @@
 """
-Open serial port with mount
+Open serial port with mount.
+
+General comment:
+The mount saves and returns the declination and hour angle coordinates.
 """
 
 import serial.tools.list_ports
 from serial import Serial, PARITY_NONE
 import time
 from astrocom import logger, AstrocomError, AstrocomSuccess
-from astrocom.astro import SIDERAL_DAY_SEC
+from astrocom.astro import SIDERAL_DAY_SEC, RaDec
 
 ### CONSTANTS
 class SWCMD:
@@ -171,7 +174,7 @@ def turn_ratio_to_position(ratio):
 	Convert turn ratio [-1,+1] to a position string for mount.
 	hexa=0x123456 -> pos=563412
 	"""
-	ratio = ratio - int(ratio) # make sure ratio between [-1,1]
+	ratio = (ratio+1)%2 - 1   # make sure ratio between [-1,1]
 	return int_to_hexa_cmd(int(round(ratio*SW_POS_MAXI + SW_POS_OFFSET)))
 
 
@@ -191,7 +194,23 @@ class MountSW(Serial):
 			setattr(self, k, SW_MODE[k])
 			
 		# Assume North for now, but needs to be updated by user !
-		self.north_south = self.NORTH
+		self._north_south = self.NORTH
+		
+		# Define home position: (HA = 18h, DEC = 90°)
+		# When HA init and set DEC<90°, the mount looks towards East
+		self.home_position = RaDec('18:00', '90°00')
+		
+	@property
+	def north_south(self):
+		return self._north_south
+		
+	@north_south.setter
+	def north_south(self, value):
+		if value == self.NORTH:
+			self.home_position.dec = '90°00'
+		else:
+			self.home_position.dec = '-90°00'
+		self._north_south = value
 
 	def __del__(self):
 		"""Delete instance, but try to close port before"""
@@ -385,7 +404,8 @@ class MountSW(Serial):
 		if not AstrocomError in [type(ans1),type(ans2)]:
 			north = self.north_south==self.NORTH
 			logger.info('Assume looking at the celestial pole at startup')
-			self.set_axis_position(2,(north - (not north))*0.25)
+			self.set_axis_position(1, self.home_position.ra_degree/360)
+			self.set_axis_position(2, self.home_position.dec_degree/360)
 			return AstrocomSuccess('Motors correctly initialized')
 		else:
 			return AstrocomError('Could not initialize motors')
@@ -400,7 +420,7 @@ class MountSW(Serial):
 		
 	def get_goto(self):
 		"""Get current goto target (as fraction of turn)"""
-		ra_ratio = self.get_goto_target(1)
+		ra_ratio = self.get_goto_target(1) # + self.home_position.ra_degree/360
 		dec_ratio = self.get_goto_target(2)
 		return ra_ratio, dec_ratio
 	
@@ -422,8 +442,7 @@ class MountSW(Serial):
 	
 	def goto(self, ra_ratio, dec_ratio):
 		"""Stop motors and set a goto target (as fraction of turn)"""
-		ra_ratio = ((ra_ratio+0.5)%1) - 0.5
-		dec_ratio = ((dec_ratio+0.5)%1) - 0.5
+		# ra_ratio = ra_ratio - self.home_position.ra_degree/360
 		ans = self.stop_motion(3)
 		if type(ans) is AstrocomError:
 			return ans
@@ -436,6 +455,10 @@ class MountSW(Serial):
 			if type(ans) is AstrocomError:
 				return ans
 		return AstrocomSuccess('Goto correctly defined')
+	
+	def goto_home(self):
+		"""Goto home position"""
+		return self.goto(self.home_position.ra_degree/360, self.home_position.dec_degree/360)
 	
 	def track(self):
 		"""Start sideral tracking"""
