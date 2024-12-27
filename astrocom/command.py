@@ -114,7 +114,7 @@ class MountCmd(cmd.Cmd):
     
 	def do_goto(self, arg):
 		"""
-		Define goto position with HR number, star name or RA-DEC coord
+		Define goto position (home, HR number, star name or RA-DEC)
 		> goto [hrXXXX name ra dec]
 		"""
 		arg = arg.split()

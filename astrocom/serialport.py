@@ -178,6 +178,11 @@ def turn_ratio_to_position(ratio):
 	return int_to_hexa_cmd(int(round(ratio*SW_POS_MAXI + SW_POS_OFFSET)))
 
 
+def gimbal_lock(dec_ratio):
+	"""Return True if position is close to gimbal lock"""
+	return abs(abs(dec_ratio) - 0.25) < SW_POS_STEP
+
+
 ### CLASS
 class MountSW(Serial):
 	
@@ -414,13 +419,13 @@ class MountSW(Serial):
 		"""Get current mount position (as fraction of turn)"""
 		ra_ratio = self.get_axis_position(1)
 		dec_ratio = self.get_axis_position(2)
-		if abs(dec_ratio - 0.25) < SW_POS_STEP:
+		if gimbal_lock(dec_ratio):
 			logger.info('RA poorly determined close to the Pole')
 		return ra_ratio, dec_ratio
 		
 	def get_goto(self):
 		"""Get current goto target (as fraction of turn)"""
-		ra_ratio = self.get_goto_target(1) # + self.home_position.ra_degree/360
+		ra_ratio = self.get_goto_target(1)
 		dec_ratio = self.get_goto_target(2)
 		return ra_ratio, dec_ratio
 	
@@ -442,10 +447,13 @@ class MountSW(Serial):
 	
 	def goto(self, ra_ratio, dec_ratio):
 		"""Stop motors and set a goto target (as fraction of turn)"""
-		# ra_ratio = ra_ratio - self.home_position.ra_degree/360
 		ans = self.stop_motion(3)
 		if type(ans) is AstrocomError:
 			return ans
+		if (ra_ratio%1) < 0.5: # looking West
+			logger.info('Work in progress for stars at West')
+			ra_ratio = (ra_ratio%1) - 0.5
+			dec_ratio = 2*self.home_position.dec_degree/360 - dec_ratio
 		self.set_goto_target(1, ra_ratio)
 		self.set_goto_target(2, dec_ratio)
 		for axis in [1,2]:
