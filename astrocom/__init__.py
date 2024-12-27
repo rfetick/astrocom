@@ -2,33 +2,44 @@
 SynScan Python library to communicate with telescope mounts
 """
 
-### DEFINE PRINT COLORS
+### DEFINE COLORS
 class COLORS:
-	BLACK = '\033[30m'
-	RED = '\033[31m'
-	GREEN = '\033[32m'
-	YELLOW = '\033[33m' # orange on some systems
-	BLUE = '\033[34m'
-	MAGENTA = '\033[35m'
+	GREEN = "\x1b[32;20m"
+	BLUE = "\033[34m"
+	YELLOW = "\x1b[33;20m"
+	RED = "\x1b[31;20m"
 	CYAN = '\033[36m'
-	LIGHT_GRAY = '\033[37m'
-	DARK_GRAY = '\033[90m'
-	BRIGHT_RED = '\033[91m'
-	BRIGHT_GREEN = '\033[92m'
-	BRIGHT_YELLOW = '\033[93m'
-	BRIGHT_BLUE = '\033[94m'
-	BRIGHT_MAGENTA = '\033[95m'
-	BRIGHT_CYAN = '\033[96m'
-	WHITE = '\033[97m'
-	RESET = '\033[0m' # called to return to standard terminal text color
-
+	RESET = '\033[0m'
 
 ### DEFINE LOGGER and EXCEPTION
 import logging as _logging
 
+class _CustomFormatter(_logging.Formatter):
+    """
+    https://stackoverflow.com/questions/384076/how-can-i-color-python-logging-output
+    """
+    
+    FORMAT = "%(levelname)s - %(message)s (%(filename)s:%(lineno)d)"
+
+    FORMAT_LIST = {
+        _logging.DEBUG: COLORS.YELLOW + FORMAT + COLORS.RESET,
+        _logging.INFO: COLORS.GREEN + FORMAT + COLORS.RESET,
+        _logging.WARNING: COLORS.YELLOW + FORMAT + COLORS.RESET,
+        _logging.ERROR: COLORS.RED + FORMAT + COLORS.RESET,
+        _logging.CRITICAL: COLORS.RED + FORMAT + COLORS.RESET
+    }
+
+    def format(self, record):
+        log_fmt = self.FORMAT_LIST.get(record.levelno)
+        formatter = _logging.Formatter(log_fmt)
+        return formatter.format(record)
+
 logger = _logging.getLogger('astrocom')
-_logging.basicConfig(format=COLORS.YELLOW+'%(levelname)s :: %(message)s'+COLORS.RESET)
 logger.setLevel(_logging.INFO)
+_ch = _logging.StreamHandler()
+_ch.setLevel(_logging.DEBUG)
+_ch.setFormatter(_CustomFormatter())
+logger.addHandler(_ch)
 
 class AstrocomError(Exception):
 	"""Define a specific Exception to Astrocom"""

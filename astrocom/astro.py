@@ -244,7 +244,7 @@ def print_catalog(catalog, nb_to_print, latitude_dms, longitude_dms, alt_min=10)
 		alt,az = catalog[i].altaz(latitude_dms, longitude_dms)
 		if alt >= alt_min:
 			if nb_to_print%2:
-				clr = COLORS.CYAN
+				clr = COLORS.BLUE
 			else:
 				clr = COLORS.RESET
 			print(clr + catalog[i].__str__() + '  %3u°  %2s'%(alt,cardinal_point(az)) + COLORS.RESET)

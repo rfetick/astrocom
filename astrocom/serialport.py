@@ -332,6 +332,7 @@ class MountSW(Serial):
 	def set_goto_target(self, axis, ratio):
 		"""Set goto target from a turn ratio"""
 		pos = turn_ratio_to_position(ratio)
+		logger.debug('Go to %.3f on axis %u'%(ratio, axis))
 		return self.send_cmd(SWCMD.SET_GOTO_TARGET, axis, pos)
 	
 	def get_goto_target(self, axis):
@@ -450,9 +451,8 @@ class MountSW(Serial):
 		ans = self.stop_motion(3)
 		if type(ans) is AstrocomError:
 			return ans
-		if (ra_ratio%1) < 0.5: # looking West
-			logger.info('Work in progress for stars at West')
-			ra_ratio = (ra_ratio%1) - 0.5
+		if ra_ratio < self.home_position.ra_degree/360 : # looking West
+			ra_ratio = ra_ratio + 0.5
 			dec_ratio = 2*self.home_position.dec_degree/360 - dec_ratio
 		self.set_goto_target(1, ra_ratio)
 		self.set_goto_target(2, dec_ratio)
@@ -473,6 +473,7 @@ class MountSW(Serial):
 		ans = self.stop_motion(3)
 		if type(ans) is AstrocomError:
 			return ans
+		self.set_sideral_speed()
 		for axis in [1,2]:
 			ans = self.set_motion_mode(axis, self.TRACK, self.SLOW, self.FORWARD)
 			if type(ans) is AstrocomError:
