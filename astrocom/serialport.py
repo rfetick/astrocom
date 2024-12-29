@@ -481,6 +481,30 @@ class MountSW(Serial):
 		self.start_motion(1)
 		return AstrocomSuccess('Start tracking')
 	
+	def move_ra(self, sideral_speed_multiplier):
+		"""Move along the RA axis"""
+		ans = self.stop_motion(3)
+		if type(ans) is AstrocomError:
+			return ans
+		axis = 1
+		if sideral_speed_multiplier<0:
+			return AstrocomError('Negative speed not implemented yet')
+		self.set_speed(axis, abs(sideral_speed_multiplier))
+		self.start_motion(axis)
+		return AstrocomSuccess('Start RA fast moving')
+	
+	def move_dec(self, sideral_speed_multiplier):
+		"""Move along the DEC axis"""
+		ans = self.stop_motion(3)
+		if type(ans) is AstrocomError:
+			return ans
+		axis = 2
+		if sideral_speed_multiplier<0:
+			return AstrocomError('Negative speed not implemented yet')
+		self.set_speed(axis, abs(sideral_speed_multiplier))
+		self.start_motion(axis)
+		return AstrocomSuccess('Start DEC fast moving')
+	
 	def get_rotation_speed(self, axis):
 		"""Get rotation speed (deg/sec)"""
 		cpr = self.get_cpr(axis)
@@ -490,13 +514,20 @@ class MountSW(Serial):
 			return AstrocomError('Could not get CPR, TIF or STEP')
 		return tif*360/step/cpr
 		
-	def set_sideral_speed(self):
-		"""Set sideral speed on the Right-Ascension axis"""
-		axis = 1
+	def set_speed(self, axis, sideral_speed_multiplier):
+		"""Set the speed on an axis as multiple of the sideral speed"""
+		if sideral_speed_multiplier<=0:
+			return AstrocomError('Speed multiplier cannot be negative or null')
+		if sideral_speed_multiplier>30:
+			return AstrocomError('Prevent to set such a high speed')
 		cpr = self.get_cpr(axis)
 		tif = self.get_tif(axis)
 		if AstrocomError in [type(cpr),type(tif)]:
 			return AstrocomError('Could not get CPR or TIF')
-		step = int(round(SIDERAL_DAY_SEC*tif/cpr))
+		step = int(round(SIDERAL_DAY_SEC*tif/cpr/sideral_speed_multiplier))
 		return self.set_step_period(axis, step)
+		
+	def set_sideral_speed(self):
+		"""Set sideral speed on the Right-Ascension axis"""
+		return self.set_speed(1, 1)
 		

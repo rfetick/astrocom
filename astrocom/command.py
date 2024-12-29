@@ -79,18 +79,20 @@ class MountCmd(cmd.Cmd):
 		
 	def do_ra(self, arg):
 		"""
-		Step move along the RA axis
-		> ra [arcmin]
+		Start fast moving along the RA axis
+		> ra [speed]
 		"""
-		AstrocomError('Not implemented yet')
+		arg = arg.split()
+		self.mount_serial.move_ra(int(arg[0]))
 		return
 
 	def do_dec(self, arg):
 		"""
-		Step move along the DEC axis
-		> dec [arcmin]
+		Start fast moving along the DEC axis
+		> dec [speed]
 		"""
-		AstrocomError('Not implemented yet')
+		arg = arg.split()
+		self.mount_serial.move_dec(int(arg[0]))
 		return
 		
 	def do_track(self, _):
