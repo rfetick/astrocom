@@ -21,7 +21,6 @@ class MountCmd(cmd.Cmd):
 			self.mount_serial.north_south = self.mount_serial.NORTH
 		else:
 			self.mount_serial.north_south = self.mount_serial.SOUTH
-		return
 	
 	def postcmd(self, *args, **kwargs):
 		"""Print empty line at end of each command"""
@@ -41,7 +40,6 @@ class MountCmd(cmd.Cmd):
 			doc_lines[2] = doc_lines[2].replace("> "," "*4).replace("\t","")
 			fill = max(30-len(doc_lines[2]),1)
 			print(doc_lines[2] + ' '*fill + doc_lines[1])
-		return
         
 	def do_bsc(self, arg):
 		"""
@@ -52,17 +50,18 @@ class MountCmd(cmd.Cmd):
 		if len(arg)==0:
 			arg = ['15']
 		print_catalog(self.catalog, int(arg[0]), self.mount_position.latitude, self.mount_position.longitude)
-		return
         
 	def do_init(self, _):
 		"""
 		Initialize motors
 		> init
 		"""
-		ans = self.mount_serial.init_mount()
-		if type(ans) is not AstrocomError:
-			self.do_status(_)
-		return
+		try:
+			self.mount_serial.init_mount()
+		except AstrocomError:
+			pass
+		else:
+			self.do_status(None)
 		
 	def do_time(self, arg):
 		"""
@@ -75,7 +74,6 @@ class MountCmd(cmd.Cmd):
 		print('LOCAL  : %02u:%02u:%02u'%(dt_local.hour, dt_local.minute, dt_local.second))
 		print('UTC    : %02u:%02u:%02u'%(dt_utc.hour, dt_utc.minute, dt_utc.second))
 		print('SIDERAL: %02u:%02u:%02u'%dt_sid.hms)
-		return
 		
 	def do_ra(self, arg):
 		"""
@@ -83,8 +81,10 @@ class MountCmd(cmd.Cmd):
 		> ra [speed]
 		"""
 		arg = arg.split()
-		self.mount_serial.move_ra(int(arg[0]))
-		return
+		try:
+			self.mount_serial.move_ra(int(arg[0]))
+		except AstrocomError:
+			pass
 
 	def do_dec(self, arg):
 		"""
@@ -92,36 +92,40 @@ class MountCmd(cmd.Cmd):
 		> dec [speed]
 		"""
 		arg = arg.split()
-		self.mount_serial.move_dec(int(arg[0]))
-		return
+		try:
+			self.mount_serial.move_dec(int(arg[0]))
+		except AstrocomError:
+			pass
 		
 	def do_track(self, _):
 		"""
 		Start sideral tracking
 		> track
 		"""
-		self.mount_serial.track()
-		return
+		try:
+			self.mount_serial.track()
+		except AstrocomError:
+			pass
 		
 	def do_status(self, _):
 		"""
 		Print status and position of motors
 		> status
 		"""
-		status_1 = self.mount_serial.get_axis_status_as_str(1)
-		status_2 = self.mount_serial.get_axis_status_as_str(2)
-		position_1, position_2 = self.mount_serial.get_position()
-		goto_1, goto_2 = self.mount_serial.get_goto()
-		print("AXIS POSITION      GOTO  MOVING  MODE    DIR SPEED")
-		if AstrocomError not in [type(status_1), type(position_1), type(goto_1)]:
+		try:
+			status_1 = self.mount_serial.get_axis_status_as_str(1)
+			status_2 = self.mount_serial.get_axis_status_as_str(2)
+			position_1, position_2 = self.mount_serial.get_position()
+			goto_1, goto_2 = self.mount_serial.get_goto()
+			print("AXIS POSITION      GOTO  MOVING  MODE    DIR SPEED")
 			self.mount_position.hour_angle = 360*position_1 # degree
 			goto_1_str = self.mount_position.complementary_angle(360*goto_1).ra_str
 			print("""RA   %s  %s %s"""%(self.mount_position.ra_str, goto_1_str, status_1.lower()))
-		if AstrocomError not in [type(status_2), type(position_2), type(goto_2)]:
 			self.mount_position.dec = 360*position_2
 			goto_2_str = RaDec(0, 360*goto_2).dec_str
 			print("""DEC %s %s %s"""%(self.mount_position.dec_str, goto_2_str, status_2.lower()))
-		return
+		except AstrocomError:
+			pass
     
 	def do_goto(self, arg):
 		"""
@@ -129,33 +133,32 @@ class MountCmd(cmd.Cmd):
 		> goto [hrXXXX name ra dec]
 		"""
 		arg = arg.split()
-		if len(arg)==1:
-			name = arg[0]
-			if name.lower() == 'home':
-				self.mount_serial.goto_home()
-				self.do_status(None)
-				return
-			star = None
-			for s in self.catalog:
-				if name.lower() in ['hr%u'%s.hr, s.name.lower()]:
-					star = s
-					break
-			if star is None:
-				AstrocomError('Star <%s> is not in the catalog'%name)
-				return
-			alt,_ = star.altaz(self.mount_position.latitude, self.mount_position.longitude)
-			if alt<0:
-				AstrocomError('Star <%s> is below the horizon'%name)
-				return
-		elif len(arg)==2:
-			star = RaDec(arg[0], arg[1])
-		else:
-			AstrocomError('Goto does not accept more than 2 elements')
-			return
-		ha_degree = self.mount_position.complementary_angle(star.ra).ra_degree
-		self.mount_serial.goto(ha_degree/360, star.dec_degree/360)
-		self.do_status(None)
-		return
+		try:
+			if len(arg)==1:
+				name = arg[0]
+				if name.lower() == 'home':
+					self.mount_serial.goto_home()
+					self.do_status(None)
+					return
+				star = None
+				for s in self.catalog:
+					if name.lower() in ['hr%u'%s.hr, s.name.lower()]:
+						star = s
+						break
+				if star is None:
+					raise AstrocomError('Star <%s> is not in the catalog'%name)
+				alt,_ = star.altaz(self.mount_position.latitude, self.mount_position.longitude)
+				if alt<0:
+					raise AstrocomError('Star <%s> is below the horizon'%name)
+			elif len(arg)==2:
+				star = RaDec(arg[0], arg[1])
+			else:
+				raise AstrocomError('Goto does not accept more than 2 elements')
+			ha_degree = self.mount_position.complementary_angle(star.ra).ra_degree
+			self.mount_serial.goto(ha_degree/360, star.dec_degree/360)
+			self.do_status(None)
+		except AstrocomError:
+			pass
 					
 	def do_start(self, axnb):
 		"""
@@ -165,8 +168,10 @@ class MountCmd(cmd.Cmd):
 		if len(axnb)==0:
 			 axnb = '3' # both axis if nothing provided
 		axnb = int(axnb)
-		self.mount_serial.start(axnb)
-		return
+		try:
+			self.mount_serial.start(axnb)
+		except AstrocomError:
+			pass
 	
 	def do_stop(self, axnb):
 		"""
@@ -176,8 +181,10 @@ class MountCmd(cmd.Cmd):
 		if len(axnb)==0:
 			axnb = '3' # both axis if nothing provided
 		axnb = int(axnb)
-		self.mount_serial.stop(axnb)
-		return
+		try:
+			self.mount_serial.stop(axnb)
+		except AstrocomError:
+			pass
 			
 	def do_exit(self, arg):
 		"""
