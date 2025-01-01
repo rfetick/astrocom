@@ -53,5 +53,5 @@ class AstrocomSuccess:
 ### IMPORT MODULES
 from . import astro
 from . import serialport
-from . import command
+from . import interface
 

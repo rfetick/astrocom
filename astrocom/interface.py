@@ -1,14 +1,16 @@
 """
-Command line interface
+User interface: command line (CLI) or graphical (GUI)
 """
 
 import cmd
+import tkinter
 import datetime
 from astrocom import AstrocomError
 from astrocom.astro import read_bsc, cardinal_point, MountPosition, RaDec, print_catalog
 from astrocom.serialport import MountSW
 
-class MountCmd(cmd.Cmd):
+### COMMAND LINE INTERFACE
+class MountCLI(cmd.Cmd):
 	intro = "\n".join(("","="*35,"Welcome to the ASTROCOM command line.","Type help or ? to list commands.","="*35,""))
 	prompt = "(astrocom) "
 	
@@ -193,3 +195,32 @@ class MountCmd(cmd.Cmd):
         """
 		return True
 		
+
+### GRAPHICAL USER INTERFACE
+class MountGUI:
+	def __init__(self, portname, longitude, latitude):
+		self.catalog = read_bsc()
+		self.mount_position = MountPosition(longitude, latitude)
+		self.mount_serial = MountSW(portname)
+		if latitude[0]>=0:
+			self.mount_serial.north_south = self.mount_serial.NORTH
+		else:
+			self.mount_serial.north_south = self.mount_serial.SOUTH
+		
+		self.window = tkinter.Tk()
+		self.window.title('ASTROCOM')
+		
+		def time():
+			dt_local = datetime.datetime.now()
+			dt_utc = dt_local.utcnow()
+			dt_sid = self.mount_position.sideral_time
+			string =         'LOCAL     %02u:%02u:%02u'%(dt_local.hour, dt_local.minute, dt_local.second)
+			string += '\n' + 'UTC         %02u:%02u:%02u'%(dt_utc.hour, dt_utc.minute, dt_utc.second)
+			string += '\n' + 'SIDERAL  %02u:%02u:%02u'%dt_sid.hms
+			lbl.config(text=string)
+			lbl.after(1000, time)
+
+		lbl = tkinter.Label(self.window, font=('calibri', 20, 'bold'), background='purple', foreground='white', justify='right')
+		lbl.pack(anchor='e')
+		time()
+		tkinter.mainloop()

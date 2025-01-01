@@ -2,7 +2,7 @@
 Basic script to list ports and open command line interface
 """
 
-from astrocom.command import MountCmd
+from astrocom.interface import MountCLI
 from astrocom.serialport import list_ports
 
 #%% PARAMETERS TO MODIFY
@@ -18,7 +18,7 @@ for pp in list_ports():
 		port_found = True
 		portname = pp.device
 		print('Initialize mount on %s'%portname)
-		mcmd = MountCmd(portname, longitude, latitude)
+		mcmd = MountCLI(portname, longitude, latitude)
 		mcmd.cmdloop()
 		
 if not port_found:

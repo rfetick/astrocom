@@ -19,7 +19,7 @@ north_pole_altaz = radec_to_altaz(0, 90, latitude_deg, longitude_deg)
 zenith_altaz = radec_to_altaz(meridian_deg, latitude_deg, latitude_deg, longitude_deg)
 
 print('Sideral time  = %02u:%02u:%02u'%sid_time.hms)
-print('Zenith alt-az = %5.1f° %5.1f°'%zenith_altaz)
+print('Zenith alt    = %5.1f°'%zenith_altaz[0])
 print('Pole   alt-az = %5.1f° %5.1f°'%north_pole_altaz)
 
 ### PRINT CATALOG
