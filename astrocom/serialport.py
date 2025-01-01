@@ -432,32 +432,30 @@ class MountSW(Serial):
 	
 	def track(self):
 		"""Start sideral tracking"""
+		return self.move_ra(1.0)
+	
+	def _move_axis(self, axis, sideral_speed_multiplier):
+		"""Move on a given axis"""
 		self.stop_motion(3)
-		self.set_sideral_speed()
-		for axis in [1,2]:
-			self.set_motion_mode(axis, self.TRACK, self.SLOW, self.FORWARD)
-		self.start_motion(1)
-		return AstrocomSuccess('Start tracking')
+		if sideral_speed_multiplier<0:
+			direction = self.BACKWARD
+		elif sideral_speed_multiplier>0:
+			direction = self.FORWARD
+		else:
+			return
+		self.set_motion_mode(axis, self.TRACK, self.SLOW, direction)
+		self._set_speed(axis, abs(sideral_speed_multiplier))
+		self.start_motion(axis)
 	
 	def move_ra(self, sideral_speed_multiplier):
 		"""Move along the RA axis"""
-		self.stop_motion(3)
-		axis = 1
-		if sideral_speed_multiplier<0:
-			raise AstrocomError('Negative speed not implemented yet')
-		self.set_speed(axis, abs(sideral_speed_multiplier))
-		self.start_motion(axis)
-		return AstrocomSuccess('Start RA fast moving')
+		self._move_axis(1, sideral_speed_multiplier)
+		return AstrocomSuccess('Start RA moving at speed %.1f'%sideral_speed_multiplier)
 	
 	def move_dec(self, sideral_speed_multiplier):
 		"""Move along the DEC axis"""
-		self.stop_motion(3)
-		axis = 2
-		if sideral_speed_multiplier<0:
-			raise AstrocomError('Negative speed not implemented yet')
-		self.set_speed(axis, abs(sideral_speed_multiplier))
-		self.start_motion(axis)
-		return AstrocomSuccess('Start DEC fast moving')
+		self._move_axis(2, sideral_speed_multiplier)
+		return AstrocomSuccess('Start DEC moving at speed %.1f'%sideral_speed_multiplier)
 	
 	def get_rotation_speed(self, axis):
 		"""Get rotation speed (deg/sec)"""
@@ -466,7 +464,7 @@ class MountSW(Serial):
 		step = self.get_step_period(axis)
 		return tif*360/step/cpr
 		
-	def set_speed(self, axis, sideral_speed_multiplier):
+	def _set_speed(self, axis, sideral_speed_multiplier):
 		"""Set the speed on an axis as multiple of the sideral speed"""
 		if sideral_speed_multiplier<=0:
 			raise AstrocomError('Speed multiplier cannot be negative or null')
@@ -476,8 +474,4 @@ class MountSW(Serial):
 		tif = self.get_tif(axis)
 		step = int(round(SIDERAL_DAY_SEC*tif/cpr/sideral_speed_multiplier))
 		return self.set_step_period(axis, step)
-		
-	def set_sideral_speed(self):
-		"""Set sideral speed on the Right-Ascension axis"""
-		return self.set_speed(1, 1)
 		
