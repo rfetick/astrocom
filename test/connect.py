@@ -19,6 +19,7 @@ for pp in list_ports():
 		print('Motor version: %u'%mount.get_motor_board_version(1))
 		print('High speed ratio: %s'%mount.get_high_speed_ratio(1))
 		print('Speed: %.3f °/h'%(3600*mount.get_rotation_speed(1)))
+		print('Axis tele pos: %.2f'%mount.get_axis_telemetry_position(1))
 		
 if not port_found:
 	print('Did not find any port matching <%s>'%productname)

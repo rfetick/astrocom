@@ -31,6 +31,8 @@ class SWCMD:
 	SET_GOTO_TARGET = 'S'
 	SET_LED_BRIGHTNESS = 'V'
 	GET_HIGH_SPEED_RATIO = 'g'
+	GET_AXIS_TELE_POSITION = 'd'
+	EXTENDED_INQUIRE = 'q'
     
 SW_ERROR = {
 '0':'UNKNOWN_COMMAND',
@@ -146,10 +148,10 @@ def hexa_response_to_int(res):
 	return int(descramble, 16)
 
 
-def int_to_hexa_cmd(value_int):
+def int_to_hexa_cmd(value_int, zero_fill=6):
 	"""Convert an integer to an hexadecimal command"""
 	hexa = hex(value_int)[2:].upper()
-	hexa = "0"*(6-len(hexa)) + hexa
+	hexa = "0"*(zero_fill-len(hexa)) + hexa
 	return hexa[4] + hexa[5] + hexa[2] + hexa[3] + hexa[0] + hexa[1]
 
 
@@ -176,7 +178,7 @@ def gimbal_lock(dec_ratio):
 
 
 ### CLASS
-class MountSW(Serial):
+class MountSWserial(Serial):
 	
 	### BASIC READ and WRITE FUNCTIONS
 	def __init__(self, portname):
@@ -186,28 +188,8 @@ class MountSW(Serial):
 			self.open()
 		self.flushInput()
 		self.flushOutput()
-		
 		for k in SW_MODE.keys():
 			setattr(self, k, SW_MODE[k])
-			
-		# Assume North for now, but needs to be updated by user !
-		self._north_south = self.NORTH
-		
-		# Define home position: (HA = 18h, DEC = 90°)
-		# When HA init and set DEC<90°, the mount looks towards East
-		self.home_position = RaDec('18:00', '90°00')
-		
-	@property
-	def north_south(self):
-		return self._north_south
-		
-	@north_south.setter
-	def north_south(self, value):
-		if value == self.NORTH:
-			self.home_position.dec = '90°00'
-		else:
-			self.home_position.dec = '-90°00'
-		self._north_south = value
 
 	def __del__(self):
 		"""Delete instance, but try to close port before"""
@@ -377,7 +359,44 @@ class MountSW(Serial):
 		"""Get high speed ratio"""
 		return self.send_cmd_hexa_ans(SWCMD.GET_HIGH_SPEED_RATIO, axis)
 		
-	### END-USER FUNCTIONS (SAFE TO ACCESS)
+	def get_axis_telemetry_position(self, axis):
+		"""Get axis telemetry position"""
+		return self.send_cmd_ratio_ans(SWCMD.GET_AXIS_TELE_POSITION, axis)
+		
+	def extended_inquire(self, axis):
+		"""Does not work so far!"""
+		value_hexa = int_to_hexa_cmd(0)
+		return self.send_cmd(SWCMD.EXTENDED_INQUIRE, axis, value_hexa)
+		
+	def polar_scope_brightness(self, ratio):
+		"""Define polar scope brightness [0,1]"""
+		ratio = min(max(ratio,0),1) # make sure between 0 and 1
+		value_hexa = int_to_hexa_cmd(int(round(ratio*16**2)), zero_fill=2)
+		return self.send_cmd(SWCMD.SET_LED_BRIGHTNESS, value_hexa)
+		
+		
+class MountSW(MountSWserial):
+	
+	def __init__(self, portname):
+		super().__init__(portname)
+		# Assume North for now, but needs to be updated by user !
+		self._north_south = self.NORTH
+		# Define home position: (HA = 18h, DEC = 90°)
+		# When HA init and set DEC<90°, the mount looks towards East
+		self.home_position = RaDec('18:00', '90°00')
+		
+	@property
+	def north_south(self):
+		return self._north_south
+		
+	@north_south.setter
+	def north_south(self, value):
+		if value == self.NORTH:
+			self.home_position.dec = '90°00'
+		else:
+			self.home_position.dec = '-90°00'
+		self._north_south = value
+	
 	def init_mount(self):
 		"""Initialize the mount"""
 		ans1 = self.init_motor(1)
@@ -436,7 +455,7 @@ class MountSW(Serial):
 	
 	def _move_axis(self, axis, sideral_speed_multiplier):
 		"""Move on a given axis"""
-		self.stop_motion(3)
+		self.stop_motion(axis)
 		if sideral_speed_multiplier<0:
 			direction = self.BACKWARD
 		elif sideral_speed_multiplier>0:

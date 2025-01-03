@@ -214,9 +214,17 @@ class MountGUI:
 			dt_local = datetime.datetime.now()
 			dt_utc = dt_local.utcnow()
 			dt_sid = self.mount_position.sideral_time
-			string =         'LOCAL     %02u:%02u:%02u'%(dt_local.hour, dt_local.minute, dt_local.second)
-			string += '\n' + 'UTC         %02u:%02u:%02u'%(dt_utc.hour, dt_utc.minute, dt_utc.second)
+			string =         'LOCAL    %02u:%02u:%02u'%(dt_local.hour, dt_local.minute, dt_local.second)
+			string += '\n' + 'UTC      %02u:%02u:%02u'%(dt_utc.hour, dt_utc.minute, dt_utc.second)
 			string += '\n' + 'SIDERAL  %02u:%02u:%02u'%dt_sid.hms
+			try:
+				position_1, position_2 = self.mount_serial.get_position()
+				self.mount_position.hour_angle = 360*position_1 # degree
+				self.mount_position.dec = 360*position_2
+				string += '\n' + 'RA   %s'%self.mount_position.ra_str
+				string += '\n' + 'DEC %s'%self.mount_position.dec_str
+			except AstrocomError:
+				string += '\n\n'
 			lbl.config(text=string)
 			lbl.after(1000, time)
 
