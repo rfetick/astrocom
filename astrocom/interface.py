@@ -6,7 +6,7 @@ import cmd
 import tkinter
 import datetime
 from astrocom import AstrocomError
-from astrocom.astro import read_bsc, cardinal_point, MountPosition, RaDec, print_catalog
+from astrocom.astro import read_bsc, cardinal_point, MountPosition, RaDec, print_catalog, catalog_str
 from astrocom.serialport import MountSW
 
 ### COMMAND LINE INTERFACE
@@ -51,7 +51,7 @@ class MountCLI(cmd.Cmd):
 		arg = arg.split()
 		if len(arg)==0:
 			arg = ['15']
-		print_catalog(self.catalog, int(arg[0]), self.mount_position.latitude, self.mount_position.longitude)
+		print_catalog(self.catalog, int(arg[0]), self.mount_position.latitude, self.mount_position.longitude, bicolor=True)
         
 	def do_init(self, _):
 		"""
@@ -209,6 +209,7 @@ class MountGUI:
 		
 		self.window = tkinter.Tk()
 		self.window.title('ASTROCOM')
+		# self.window.geometry('400x200+50+50')
 		
 		def time():
 			dt_local = datetime.datetime.now()
@@ -224,11 +225,57 @@ class MountGUI:
 				string += '\n' + 'RA   %s'%self.mount_position.ra_str
 				string += '\n' + 'DEC %s'%self.mount_position.dec_str
 			except AstrocomError:
-				string += '\n\n'
-			lbl.config(text=string)
-			lbl.after(1000, time)
-
-		lbl = tkinter.Label(self.window, font=('calibri', 20, 'bold'), background='purple', foreground='white', justify='right')
-		lbl.pack(anchor='e')
+				string += '\nRA  %15s\nDEC %15s'%('error','error')
+			lbl_time.config(text=string)
+			lbl_time.after(1000, time)
+			
+		def bsc():
+			txt = catalog_str(self.catalog, 15, self.mount_position.latitude, self.mount_position.longitude)
+			lbl_bsc.config(text=txt)
+			lbl_bsc.after(30*1000, bsc)
+		
+		def init():
+			try:
+				self.mount_serial.init_mount()
+			except AstrocomError:
+				pass
+			else:
+				bt_init.destroy()
+				
+				bt_track = tkinter.Button(self.window, text='Track', font=('calibri', 10, 'bold'), command=track)
+				bt_track.pack(anchor='w')
+				
+				bt_stop = tkinter.Button(self.window, text='Stop', font=('calibri', 10, 'bold'), command=stop)
+				bt_stop.pack(anchor='w')
+			
+		def track():
+			try:
+				self.mount_serial.track()
+			except AstrocomError:
+				pass
+			
+		def stop():
+			try:
+				self.mount_serial.stop(3) # both axis
+			except AstrocomError:
+				pass
+		
+		def goto():
+			pass
+		
+		# Define a label for time and attach it to self.window
+		lbl_time = tkinter.Label(self.window, font=('calibri', 20, 'bold'), background='purple', foreground='white', justify='right')
+		lbl_time.pack(anchor='e')
 		time()
+		
+		# Define a label for BSC and attach it to self.window
+		lbl_bsc = tkinter.Label(self.window, font=('calibri', 10, 'bold'), background='black', foreground='white', justify='right')
+		lbl_bsc.pack(anchor='s')
+		bsc()
+		
+		# Define buttons
+		bt_init = tkinter.Button(self.window, text='Init', font=('calibri', 10, 'bold'), command=init)
+		bt_init.pack(anchor='w')
+				
+		# Run Tkinter loop
 		tkinter.mainloop()

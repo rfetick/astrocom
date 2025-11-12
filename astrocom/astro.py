@@ -235,23 +235,33 @@ def read_bsc():
 	return sorted(stars, key=lambda s:s.vmag) # sort by magnitude
 
 
-def print_catalog(catalog, nb_to_print, latitude_dms, longitude_dms, alt_min=10):
-	"""Print the brightest stars of the catalog"""
-	print('-'*(len(catalog[0].header)+10))
-	print(catalog[0].header + '  %4s  %2s'%('ALT','AZ'))
-	print('-'*(len(catalog[0].header)+10))
+def catalog_str(catalog, nb_to_print, latitude_dms, longitude_dms, alt_min=10, bicolor=False):
+	"""Get the brightest stars of the catalog as a string"""
+	st = '-'*(len(catalog[0].header)+10) + '\n'
+	st += catalog[0].header + '  %4s  %2s'%('ALT','AZ') + '\n'
+	st += '-'*(len(catalog[0].header)+10) + '\n'
+	clr = '' # no color by default
+	clr_reset = ''
 	for i in range(len(catalog)):
 		alt,az = catalog[i].altaz(latitude_dms, longitude_dms)
 		if alt >= alt_min:
-			if nb_to_print%2:
-				clr = COLORS.BLUE
-			else:
-				clr = COLORS.RESET
-			print(clr + catalog[i].__str__() + '  %3u°  %2s'%(alt,cardinal_point(az)) + COLORS.RESET)
+			if bicolor:
+				clr_reset = COLORS.RESET
+				if nb_to_print%2:
+					clr = COLORS.BLUE
+				else:
+					clr = COLORS.RESET
+			st += clr + catalog[i].__str__() + '  %3u°  %2s'%(alt,cardinal_point(az)) + clr_reset + '\n'
 			nb_to_print -= 1
-			if nb_to_print == 0:
+			if nb_to_print <= 0:
 				break
-	print('-'*(len(catalog[0].header)+10))
+	st += '-'*(len(catalog[0].header)+10)
+	return st
+
+
+def print_catalog(*args, **kwargs):
+	"""Print the brightest stars of the catalog"""
+	print(catalog_str(*args, **kwargs))
 
 
 def sideral_time(longitude_deg):
