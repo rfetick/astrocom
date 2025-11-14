@@ -235,6 +235,19 @@ def read_bsc():
 	return sorted(stars, key=lambda s:s.vmag) # sort by magnitude
 
 
+def catalog_brightest(catalog, nb_star, latitude_dms, longitude_dms, alt_min=20):
+	"""Get the brightest stars of the catalog"""
+	brightest = []
+	for i in range(len(catalog)):
+		alt,az = catalog[i].altaz(latitude_dms, longitude_dms)
+		if alt >= alt_min:
+			brightest += [catalog[i]]
+			nb_star -= 1
+			if nb_star <= 0:
+				break
+	return brightest
+
+
 def catalog_str(catalog, nb_to_print, latitude_dms, longitude_dms, alt_min=10, bicolor=False):
 	"""Get the brightest stars of the catalog as a string"""
 	st = '-'*(len(catalog[0].header)+10) + '\n'
