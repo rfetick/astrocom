@@ -85,8 +85,8 @@ class RaDec:
 		return radec_to_altaz(self.ra_degree, self.dec_degree, latitude_deg, longitude_deg)
 
 
-class MountPosition(RaDec):
-	"""MountPosition is located at (longitude,latitude) on Earth and observes a target"""
+class MountPosition:
+	"""MountPosition is located at (longitude,latitude) on Earth"""
 	def __init__(self, longitude, latitude):
 		# Data given as degrees
 		if type(longitude) in [float, int]:
@@ -96,49 +96,9 @@ class MountPosition(RaDec):
 		# Data given as tuple (default)
 		self._longitude = tuple(longitude)
 		self._latitude = tuple(latitude)
-		# looks towards celestial pole at startup
-		# the relative target (HA,DEC) is defined with respect to the meridian
-		# the absolute target (RA,DEC) is defined with respect to the ra-dec system
-		self._target_hadec = RaDec(0, 90*self.north-90*self.south)
 	
 	def __repr__(self):
 		return "MountPosition %sN %sE"%(self.latitude_str,self.longitude_str)
-	
-	def complementary_angle(self, ha_or_ra):
-		"""
-		Get complementary angle as:
-		RA + HA = sideral time
-		"""
-		ra_or_ha_degree = RaDec(ha_or_ra, 0).ra_degree
-		return RaDec(self.sideral_time.degree - ra_or_ha_degree, 0)
-	
-	@property
-	def _ra(self):
-		"""Target sky RA (hh,mm,ss)"""
-		return degree_to_hms(self.sideral_time.degree - self._target_hadec.ra_degree)
-		
-	@property
-	def _dec(self):
-		"""Target sky DEC (dd,arcmin,arcsec)"""
-		return self._target_hadec.dec
-	
-	@_dec.setter
-	def _dec(self, val):
-		self._target_hadec.dec = val
-	
-	@property
-	def altaz(self):
-		"""Get current Altitude-Azimuth of the telescope"""
-		return super().altaz(self.latitude, self.longitude)
-	
-	@property
-	def hour_angle(self):
-		"""Target sky Hour Angle"""
-		return self._target_hadec.ra
-		
-	@hour_angle.setter
-	def hour_angle(self, val):
-		self._target_hadec.ra = val
 	
 	@property
 	def longitude(self):
@@ -180,6 +140,18 @@ class MountPosition(RaDec):
 	def sideral_time(self):
 		"""Get current sideral time"""
 		return sideral_time(self.longitude_degree)
+		
+	def radec_to_telescope(self, radec):
+		"""Convert RaDec object into telescope coordinates"""
+		ha = self.sideral_time.degree - radec.ra_degree
+		dec = 90 - radec.dec_degree
+		return ha/360, dec/360
+		
+	def telescope_to_radec(self, tel_pos):
+		"""Convert telescope coordinates into RaDec object"""
+		ra = self.sideral_time.degree - 360*tel_pos[0]
+		dec = 90 - 360*tel_pos[1]
+		return RaDec(ra, dec)
 		
 
 
@@ -248,26 +220,20 @@ def catalog_brightest(catalog, nb_star, latitude_dms, longitude_dms, alt_min=20)
 	return brightest
 
 
-def catalog_str(catalog, nb_to_print, latitude_dms, longitude_dms, alt_min=10, bicolor=False):
+def catalog_str(catalog, nb_star, latitude_dms, longitude_dms, alt_min=20, bicolor=False):
 	"""Get the brightest stars of the catalog as a string"""
 	st = '-'*(len(catalog[0].header)+10) + '\n'
 	st += catalog[0].header + '  %4s  %2s'%('ALT','AZ') + '\n'
 	st += '-'*(len(catalog[0].header)+10) + '\n'
 	clr = '' # no color by default
-	clr_reset = ''
-	for i in range(len(catalog)):
-		alt,az = catalog[i].altaz(latitude_dms, longitude_dms)
-		if alt >= alt_min:
-			if bicolor:
-				clr_reset = COLORS.RESET
-				if nb_to_print%2:
-					clr = COLORS.BLUE
-				else:
-					clr = COLORS.RESET
-			st += clr + catalog[i].__str__() + '  %3u°  %2s'%(alt,cardinal_point(az)) + clr_reset + '\n'
-			nb_to_print -= 1
-			if nb_to_print <= 0:
-				break
+	clr_reset = '' # no color by default
+	brightest = catalog_brightest(catalog, nb_star, latitude_dms, longitude_dms, alt_min=20)
+	for i in range(len(brightest)):
+		if bicolor:
+			clr_reset = COLORS.RESET
+			clr = [COLORS.BLUE,COLORS.RESET][i%2]
+		alt,az = brightest[i].altaz(latitude_dms, longitude_dms)
+		st += clr + brightest[i].__str__() + '  %3u°  %2s'%(alt,cardinal_point(az)) + clr_reset + '\n'
 	st += '-'*(len(catalog[0].header)+10)
 	return st
 

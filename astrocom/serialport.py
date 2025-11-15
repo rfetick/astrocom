@@ -172,13 +172,11 @@ def turn_ratio_to_position(ratio):
 	return int_to_hexa_cmd(int(round(ratio*SW_POS_MAXI + SW_POS_OFFSET)))
 
 
-def gimbal_lock(dec_ratio):
-	"""Return True if position is close to gimbal lock"""
-	return abs(abs(dec_ratio) - 0.25) < SW_POS_STEP
-
-
 ### CLASS
 class MountSWserial(Serial):
+	"""
+	Raw functions to communicate with Sky-Watcher mount
+	"""
 	
 	### BASIC READ and WRITE FUNCTIONS
 	def __init__(self, portname):
@@ -376,43 +374,23 @@ class MountSWserial(Serial):
 		
 		
 class MountSW(MountSWserial):
-	
-	def __init__(self, portname):
-		super().__init__(portname)
-		# Assume North for now, but needs to be updated by user !
-		self._north_south = self.NORTH
-		# Define home position: (HA = 18h, DEC = 90°)
-		# When HA init and set DEC<90°, the mount looks towards East
-		self.home_position = RaDec('18:00', '90°00')
-		
-	@property
-	def north_south(self):
-		return self._north_south
-		
-	@north_south.setter
-	def north_south(self, value):
-		if value == self.NORTH:
-			self.home_position.dec = '90°00'
-		else:
-			self.home_position.dec = '-90°00'
-		self._north_south = value
+	"""
+	Package MountSWSerial functions to more useful and simpler ones
+	"""
 	
 	def init_mount(self):
 		"""Initialize the mount"""
 		ans1 = self.init_motor(1)
 		ans2 = self.init_motor(2)
-		north = self.north_south==self.NORTH
 		logger.info('Assume looking at the celestial pole at startup')
-		self.set_axis_position(1, self.home_position.ra_degree/360)
-		self.set_axis_position(2, self.home_position.dec_degree/360)
+		self.set_axis_position(1, 0)
+		self.set_axis_position(2, 0)
 		return AstrocomSuccess('Motors correctly initialized')
 	
 	def get_position(self):
 		"""Get current mount position (as fraction of turn)"""
 		ra_ratio = self.get_axis_position(1)
 		dec_ratio = self.get_axis_position(2)
-		if gimbal_lock(dec_ratio):
-			logger.info('RA poorly determined close to the Pole')
 		return ra_ratio, dec_ratio
 		
 	def get_goto(self):
@@ -434,9 +412,6 @@ class MountSW(MountSWserial):
 	def goto(self, ra_ratio, dec_ratio):
 		"""Stop motors and set a goto target (as fraction of turn)"""
 		self.stop_motion(3)
-		if ra_ratio < self.home_position.ra_degree/360 : # looking West
-			ra_ratio = ra_ratio + 0.5
-			dec_ratio = 2*self.home_position.dec_degree/360 - dec_ratio
 		self.set_goto_target(1, ra_ratio)
 		self.set_goto_target(2, dec_ratio)
 		for axis in [1,2]:
@@ -447,7 +422,7 @@ class MountSW(MountSWserial):
 	
 	def goto_home(self):
 		"""Goto home position"""
-		return self.goto(self.home_position.ra_degree/360, self.home_position.dec_degree/360)
+		return self.goto(0, 0)
 	
 	def track(self):
 		"""Start sideral tracking"""

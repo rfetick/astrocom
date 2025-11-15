@@ -12,32 +12,32 @@ class COLORS:
 	RESET = '\033[0m'
 
 ### DEFINE LOGGER and EXCEPTION
-import logging as _logging
+import logging
 
-class _CustomFormatter(_logging.Formatter):
+class _CustomFormatter(logging.Formatter):
     """
     https://stackoverflow.com/questions/384076/how-can-i-color-python-logging-output
     """
     
-    FORMAT = "%(levelname)s - %(message)s (%(filename)s:%(lineno)d)"
+    FORMAT = "%(levelname)s - %(message)s"
 
     FORMAT_LIST = {
-        _logging.DEBUG: COLORS.YELLOW + FORMAT + COLORS.RESET,
-        _logging.INFO: COLORS.GREEN + FORMAT + COLORS.RESET,
-        _logging.WARNING: COLORS.YELLOW + FORMAT + COLORS.RESET,
-        _logging.ERROR: COLORS.RED + FORMAT + COLORS.RESET,
-        _logging.CRITICAL: COLORS.RED + FORMAT + COLORS.RESET
+        logging.DEBUG: COLORS.YELLOW + FORMAT + COLORS.RESET,
+        logging.INFO: COLORS.GREEN + FORMAT + COLORS.RESET,
+        logging.WARNING: COLORS.YELLOW + FORMAT + COLORS.RESET,
+        logging.ERROR: COLORS.RED + FORMAT + COLORS.RESET,
+        logging.CRITICAL: COLORS.RED + FORMAT + COLORS.RESET
     }
 
     def format(self, record):
         log_fmt = self.FORMAT_LIST.get(record.levelno)
-        formatter = _logging.Formatter(log_fmt)
+        formatter = logging.Formatter(log_fmt)
         return formatter.format(record)
 
-logger = _logging.getLogger('astrocom')
-logger.setLevel(_logging.INFO)
-_ch = _logging.StreamHandler()
-_ch.setLevel(_logging.DEBUG)
+logger = logging.getLogger('astrocom')
+logger.setLevel(logging.INFO)
+_ch = logging.StreamHandler()
+_ch.setLevel(logging.DEBUG)
 _ch.setFormatter(_CustomFormatter())
 logger.addHandler(_ch)
 

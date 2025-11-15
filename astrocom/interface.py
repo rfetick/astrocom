@@ -121,15 +121,11 @@ class MountCLI(cmd.Cmd):
 		try:
 			status_1 = self.mount_serial.get_axis_status_as_str(1)
 			status_2 = self.mount_serial.get_axis_status_as_str(2)
-			position_1, position_2 = self.mount_serial.get_position()
-			goto_1, goto_2 = self.mount_serial.get_goto()
+			pos = self.mount_position.telescope_to_radec(self.mount_serial.get_position())
+			goto = self.mount_position.telescope_to_radec(self.mount_serial.get_goto())
 			print("AXIS POSITION      GOTO  MOVING  MODE    DIR SPEED")
-			self.mount_position.hour_angle = 360*position_1 # degree
-			goto_1_str = self.mount_position.complementary_angle(360*goto_1).ra_str
-			print("""RA   %s  %s %s"""%(self.mount_position.ra_str, goto_1_str, status_1.lower()))
-			self.mount_position.dec = 360*position_2
-			goto_2_str = RaDec(0, 360*goto_2).dec_str
-			print("""DEC %s %s %s"""%(self.mount_position.dec_str, goto_2_str, status_2.lower()))
+			print("""RA   %s  %s %s"""%(pos.ra_str, goto.ra_str, status_1.lower()))
+			print("""DEC %s %s %s"""%(pos.dec_str, goto.dec_str, status_2.lower()))
 		except AstrocomError:
 			pass
     
@@ -160,8 +156,7 @@ class MountCLI(cmd.Cmd):
 				star = RaDec(arg[0], arg[1])
 			else:
 				raise AstrocomError('Goto does not accept more than 2 elements')
-			ha_degree = self.mount_position.complementary_angle(star.ra).ra_degree
-			self.mount_serial.goto(ha_degree/360, star.dec_degree/360)
+			self.mount_serial.goto(*self.mount_position.radec_to_telescope(star))
 			self.do_status(None)
 		except AstrocomError:
 			pass
