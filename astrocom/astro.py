@@ -142,14 +142,23 @@ class MountPosition:
 		return sideral_time(self.longitude_degree)
 		
 	def radec_to_telescope(self, radec):
-		"""Convert RaDec object into telescope coordinates"""
+		"""
+		Convert RaDec object into telescope coordinates.
+		Assume that (0,0) is North Pole for telescope.
+		"""
 		ha = self.sideral_time.degree - radec.ra_degree
-		dec = 90 - radec.dec_degree
+		ha_tel = ha - 90 # West <=> HA=6h=90° <=> 0 on this axis
+		dec = 90 - radec.dec_degree # dec>0 and ha_tel=0 <=> West
 		return ha/360, dec/360
 		
 	def telescope_to_radec(self, tel_pos):
-		"""Convert telescope coordinates into RaDec object"""
-		ra = self.sideral_time.degree - 360*tel_pos[0]
+		"""
+		Convert telescope coordinates into RaDec object.
+		Assume that (0,0) is North Pole for telescope.
+		"""
+		ha_tel = 360*tel_pos[0]
+		ha = ha_tel + 90
+		ra = self.sideral_time.degree - ha
 		dec = 90 - 360*tel_pos[1]
 		return RaDec(ra, dec)
 		
@@ -210,10 +219,10 @@ def read_bsc():
 def catalog_brightest(catalog, nb_star, latitude_dms, longitude_dms, alt_min=20):
 	"""Get the brightest stars of the catalog"""
 	brightest = []
-	for i in range(len(catalog)):
-		alt,az = catalog[i].altaz(latitude_dms, longitude_dms)
+	for star in catalog:
+		alt,az = star.altaz(latitude_dms, longitude_dms)
 		if alt >= alt_min:
-			brightest += [catalog[i]]
+			brightest += [star]
 			nb_star -= 1
 			if nb_star <= 0:
 				break
