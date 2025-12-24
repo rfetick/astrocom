@@ -149,7 +149,7 @@ class MountPosition:
 		ha = self.sideral_time.degree - radec.ra_degree
 		ha_tel = ha - 90 # West <=> HA=6h=90° <=> 0 on this axis
 		dec = 90 - radec.dec_degree # dec>0 and ha_tel=0 <=> West
-		return ha/360, dec/360
+		return ha_tel/360, dec/360
 		
 	def telescope_to_radec(self, tel_pos):
 		"""
