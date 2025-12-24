@@ -10,7 +10,7 @@ from astropy.coordinates import EarthLocation, AltAz, SkyCoord
 from astropy.time import Time
 from astropy import units as _u
 from astropy.utils.iers import conf as _iers_config
-from astrocom import COLORS
+from astrocom import COLORS, AstrocomError
 
 _iers_config.auto_max_age = None # remove error when too old IERS data
 
@@ -147,9 +147,14 @@ class MountPosition:
 		Assume that (0,0) is North Pole for telescope.
 		"""
 		ha = self.sideral_time.degree - radec.ra_degree
-		ha_tel = ha - 90 # West <=> HA=6h=90° <=> 0 on this axis
-		dec = 90 - radec.dec_degree # dec>0 and ha_tel=0 <=> West
-		return ha_tel/360, dec/360
+		ha_tel = ha + 90
+		dec_tel = radec.dec_degree - 90
+		if ((ha%360)<180): # West : meridian flip
+			ha_tel -= 180
+			dec_tel *= -1
+		tel_pos_0 = ha_tel/360
+		tel_pos_1 = dec_tel/360
+		return tel_pos_0, tel_pos_1
 		
 	def telescope_to_radec(self, tel_pos):
 		"""
@@ -157,9 +162,13 @@ class MountPosition:
 		Assume that (0,0) is North Pole for telescope.
 		"""
 		ha_tel = 360*tel_pos[0]
-		ha = ha_tel + 90
+		dec_tel = 360*tel_pos[1]
+		if (dec_tel>0): # West : meridian flip
+			ha_tel += 180
+			dec_tel *= -1
+		ha = ha_tel - 90
+		dec = dec_tel + 90
 		ra = self.sideral_time.degree - ha
-		dec = 90 - 360*tel_pos[1]
 		return RaDec(ra, dec)
 		
 
@@ -277,15 +286,6 @@ def cardinal_point(az_deg):
 	return az_letter[idx]
 
 
-def dms_to_degree(tpl):
-	"""Convert a tuple (deg, arcmin, arcsec) to degree value"""
-	if len(tpl)!=3:
-		raise ValueError('Tuple must contain 3 elements (deg, arcmin, arcsec).')
-	degree = abs(tpl[0]) + tpl[1]/60 + tpl[2]/3600
-	positive = tpl[0] >= 0
-	return positive*degree - (not positive)*degree
-
-
 def hms_to_degree(tpl):
 	"""Convert a tuple (hh,mm,ss) to degree value"""
 	if len(tpl)!=3:
@@ -303,11 +303,19 @@ def degree_to_hms(deg):
 	return (hh,mm,ss)
 
 
+def dms_to_degree(tpl):
+	"""Convert a tuple (deg, arcmin, arcsec) to degree value"""
+	if len(tpl)!=3:
+		raise ValueError('Tuple must contain 3 elements (deg, arcmin, arcsec).')
+	degree = abs(tpl[0]) + tpl[1]/60 + tpl[2]/3600
+	positive = not np.signbit(tpl[0]) # signbit solves issue of (-0, 12, 34)
+	return positive*degree - (not positive)*degree
+
+
 def degree_to_dms(deg):
 	"""Convert degrees into (deg,arcmin,arcsec) tuple"""
-	deg = deg % 360
-	dd = int(deg)
-	arcmin = int(deg*60 - dd*60)
-	arcsec = round(deg*3600 - dd*3600 - arcmin*60)
-	return (dd,arcmin,arcsec)
+	dd = int(abs(deg))
+	arcmin = int(abs(deg)*60 - dd*60)
+	arcsec = round(abs(deg)*3600 - dd*3600 - arcmin*60)
+	return (np.sign(deg)*dd,arcmin,arcsec)
 
