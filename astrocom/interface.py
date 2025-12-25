@@ -129,6 +129,33 @@ class MountCLI(cmd.Cmd):
 		except AstrocomError:
 			pass
     
+	def do_set(self, arg):
+		"""
+		Set current position
+		> set [name ra dec]
+		"""
+		arg = arg.split()
+		try:
+			if len(arg)==1:
+				name = arg[0]
+				if name.lower() == 'home':
+					star = RaDec(0,0)
+				for s in self.catalog:
+					if name.lower() in ['hr%u'%s.hr, s.name.lower()]:
+						star = s
+						break
+				if star is None:
+					raise AstrocomError('Star <%s> is not in the catalog'%name)
+				alt,_ = star.altaz(self.mount_position.latitude, self.mount_position.longitude)
+			elif len(arg)==2:
+				star = RaDec(arg[0], arg[1])
+			else:
+				raise AstrocomError('Set does not accept more than 2 elements')
+			self.mount_serial.set_position(*self.mount_position.radec_to_telescope(star))
+			self.do_status(None)
+		except AstrocomError:
+			pass
+    
 	def do_goto(self, arg):
 		"""
 		Define goto position (home, HR number, star name or RA-DEC)

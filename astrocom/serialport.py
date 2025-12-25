@@ -393,6 +393,11 @@ class MountSW(MountSWserial):
 		dec_ratio = self.get_axis_position(2)
 		return ra_ratio, dec_ratio
 		
+	def set_position(self, ra_ratio, dec_ratio):
+		self.set_axis_position(1, ra_ratio)
+		self.set_axis_position(2, dec_ratio)
+		return AstrocomSuccess('Position set') 
+		
 	def get_goto(self):
 		"""Get current goto target (as fraction of turn)"""
 		ra_ratio = self.get_goto_target(1)
@@ -412,6 +417,13 @@ class MountSW(MountSWserial):
 	def goto(self, ra_ratio, dec_ratio):
 		"""Stop motors and set a goto target (as fraction of turn)"""
 		self.stop_motion(3)
+		ra_ratio_cur, dec_ratio_cur = self.get_position()
+		if (ra_ratio - ra_ratio_cur) > 0.5:
+			ra_ratio -= 1
+			logger.debug('Goto more than half-turn: reduced by 1')
+		if (ra_ratio - ra_ratio_cur) < -0.5:
+			ra_ratio += 1
+			logger.debug('Goto more than half-turn: increased by 1')
 		self.set_goto_target(1, ra_ratio)
 		self.set_goto_target(2, dec_ratio)
 		for axis in [1,2]:

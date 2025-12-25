@@ -35,7 +35,7 @@ class _CustomFormatter(logging.Formatter):
         return formatter.format(record)
 
 logger = logging.getLogger('astrocom')
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 _ch = logging.StreamHandler()
 _ch.setLevel(logging.DEBUG)
 _ch.setFormatter(_CustomFormatter())

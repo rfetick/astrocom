@@ -10,7 +10,7 @@ from astropy.coordinates import EarthLocation, AltAz, SkyCoord
 from astropy.time import Time
 from astropy import units as _u
 from astropy.utils.iers import conf as _iers_config
-from astrocom import COLORS, AstrocomError
+from astrocom import COLORS, AstrocomError, logger
 
 _iers_config.auto_max_age = None # remove error when too old IERS data
 
@@ -147,13 +147,16 @@ class MountPosition:
 		Assume that (0,0) is North Pole for telescope.
 		"""
 		ha = self.sideral_time.degree - radec.ra_degree
-		ha_tel = ha + 90
+		ha_tel = ha - 90
 		dec_tel = radec.dec_degree - 90
-		if ((ha%360)<180): # West : meridian flip
-			ha_tel -= 180
-			dec_tel *= -1
+		west = False
+		#if ((ha%360)<180): # West : meridian flip
+		#	ha_tel -= 180
+		#	dec_tel *= -1
+		#	west = True
 		tel_pos_0 = ha_tel/360
 		tel_pos_1 = dec_tel/360
+		logger.debug('radec %6.2f %6.2f  ->  telescope %6.2f %6.2f  (West=%s)'%(radec.ra_degree, radec.dec_degree, tel_pos_0, tel_pos_1, west))
 		return tel_pos_0, tel_pos_1
 		
 	def telescope_to_radec(self, tel_pos):
@@ -163,12 +166,15 @@ class MountPosition:
 		"""
 		ha_tel = 360*tel_pos[0]
 		dec_tel = 360*tel_pos[1]
-		if (dec_tel>0): # West : meridian flip
-			ha_tel += 180
-			dec_tel *= -1
-		ha = ha_tel - 90
+		west = False
+		#if (dec_tel>0): # West : meridian flip
+		#	ha_tel += 180
+		#	dec_tel *= -1
+		#	west = True
+		ha = ha_tel + 90
 		dec = dec_tel + 90
 		ra = self.sideral_time.degree - ha
+		logger.debug('telescope %6.2f %6.2f  ->  radec %6.2f %6.2f  (West=%s)'%(tel_pos[0], tel_pos[1], ra, dec, west))
 		return RaDec(ra, dec)
 		
 
